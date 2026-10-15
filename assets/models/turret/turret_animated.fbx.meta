@@ -1,0 +1,209 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c",
+  "files": [
+    "__original-animation-0.bin"
+  ],
+  "subMetas": {
+    "7a522": {
+      "importer": "gltf-mesh",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@7a522",
+      "displayName": "",
+      "id": "7a522",
+      "name": "TurretBase.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 521
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "93d2c": {
+      "importer": "gltf-mesh",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@93d2c",
+      "displayName": "",
+      "id": "93d2c",
+      "name": "TurretHead.mesh",
+      "userData": {
+        "gltfIndex": 1,
+        "triangleCount": 902
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "73b7f": {
+      "importer": "gltf-animation",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@73b7f",
+      "displayName": "",
+      "id": "73b7f",
+      "name": "Fire.animation",
+      "userData": {
+        "gltfIndex": 0,
+        "wrapMode": 1,
+        "sample": 30,
+        "span": {
+          "from": 0,
+          "to": 0.20000000298023224
+        },
+        "events": []
+      },
+      "ver": "1.0.18",
+      "imported": true,
+      "files": [
+        ".bin"
+      ],
+      "subMetas": {}
+    },
+    "9d7e5": {
+      "importer": "gltf-embeded-image",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@9d7e5",
+      "displayName": "",
+      "id": "9d7e5",
+      "name": "TurretBasecolor.image",
+      "userData": {
+        "gltfIndex": 0,
+        "fixAlphaTransparencyArtifacts": true,
+        "hasAlpha": false,
+        "type": "texture"
+      },
+      "ver": "1.0.3",
+      "imported": true,
+      "files": [
+        ".json",
+        ".png"
+      ],
+      "subMetas": {}
+    },
+    "633b7": {
+      "importer": "texture",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@633b7",
+      "displayName": "",
+      "id": "633b7",
+      "name": "TurretBasecolor.texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "5f29dbf5-f3db-4154-8039-551d8604308c@9d7e5"
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "7015e": {
+      "importer": "gltf-material",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@7015e",
+      "displayName": "",
+      "id": "7015e",
+      "name": "TurretSurface.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "8e5e9": {
+      "importer": "gltf-scene",
+      "uuid": "5f29dbf5-f3db-4154-8039-551d8604308c@8e5e9",
+      "displayName": "",
+      "id": "8e5e9",
+      "name": "turret_animated.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [
+      {
+        "name": "TurretBasecolor",
+        "uri": "5f29dbf5-f3db-4154-8039-551d8604308c@9d7e5"
+      }
+    ],
+    "fbx": {
+      "smartMaterialEnabled": true,
+      "animationBakeRate": 30,
+      "preferLocalTimeSpan": true,
+      "unitConversion": "geometry-level"
+    },
+    "animationImportSettings": [
+      {
+        "name": "Take 001",
+        "duration": 0.20000000298023224,
+        "fps": 30,
+        "splits": [
+          {
+            "name": "Fire",
+            "from": 0,
+            "to": 0.20000000298023224,
+            "wrapMode": 1,
+            "previousId": "73b7f"
+          }
+        ]
+      }
+    ],
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "5f29dbf5-f3db-4154-8039-551d8604308c@7a522",
+        "5f29dbf5-f3db-4154-8039-551d8604308c@93d2c"
+      ],
+      "skeletons": [],
+      "textures": [
+        "5f29dbf5-f3db-4154-8039-551d8604308c@633b7"
+      ],
+      "materials": [
+        "5f29dbf5-f3db-4154-8039-551d8604308c@7015e"
+      ],
+      "scenes": [
+        "5f29dbf5-f3db-4154-8039-551d8604308c@8e5e9"
+      ]
+    }
+  }
+}

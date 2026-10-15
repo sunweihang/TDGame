@@ -1,0 +1,9 @@
+{
+  "name": "TD",
+  "uuid": "e3d04a6a-84af-4bae-8599-bb2e95d99a64",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "version": "1.0.0",
+  "description": "TD — empty 3D, 1080x1920 portrait (Cocos Creator 3.8.8)"
+}

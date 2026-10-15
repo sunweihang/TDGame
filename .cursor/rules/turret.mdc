@@ -1,0 +1,12 @@
+---
+description: Turret ID, prefab name, size, and Fire clip
+alwaysApply: true
+---
+
+Turret IDs are decimal numbers starting at 10000. The current turret is 10000. The next new turret is 10001, then 10002, and so on. Never reuse or skip an assigned ID.
+
+The prefab file and its root node use the ID as the name, with no prefix: `assets/prefabs/turret/10000.prefab`, node `10000`. Scene instances use that same name. Turret scripts live in `assets/scripts/turret/`.
+
+Match new turret design to prefab `10000`. In Cocos units (1 unit = 1 meter) its bounds are width 4.07 (X), height 4.00 (Y), depth 4.95 (Z). The base sits on y = 0, X is centered, the muzzle points to +Z, and the head yaw pivot is at y = 1.51.
+
+Turret fire animations use the clip name `Fire`. When importing or splitting an FBX take, set the animation split name to `Fire` and keep the existing clip id so prefabs stay linked. Do not leave the default `Take 001` name.
