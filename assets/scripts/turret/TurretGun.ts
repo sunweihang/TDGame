@@ -44,6 +44,23 @@ const _center = new Vec3();
 
 type Cap = { center: Vec3; dir: Vec3; spread: number };
 
+type Gun = {
+  root: Node;
+  head: Node | null;
+  anim: Animation | null;
+  clip: string;
+  muzzle: Vec3;
+  forward: Vec3;
+  yawAxis: Vec3;
+  restRot: Quat;
+  restPos: Vec3;
+  rawPos: Vec3;
+  center: Vec3;
+  groundY: number;
+  time: number;
+  cool: number;
+};
+
 function findNode(root: Node, name: string): Node | null {
   if (root.name.toLowerCase() === name) return root;
   for (let i = 0; i < root.children.length; i++) {
@@ -150,22 +167,10 @@ function axisComp(axis: number): 'x' | 'y' | 'z' {
 
 @ccclass('TurretGun')
 export class TurretGun extends Component {
-  private _root: Node | null = null;
-  private _head: Node | null = null;
-  private _anim: Animation | null = null;
-  private _clip = '';
-  private _muzzle = new Vec3();
-  private _forward = new Vec3(0, 0, -1);
-  private _yawAxis = new Vec3(0, 1, 0);
-  private _restRot = new Quat();
-  private _restPos = new Vec3();
-  private _rawPos = new Vec3();
+  private _guns: Gun[] = [];
   private _focus = new Vec3(0, 1, 0);
-  private _groundY = 0;
   private _height = TARGET_HEIGHT;
   private _ready = false;
-  private _time = 0;
-  private _cool = 0.45;
   private _attempts = 0;
   private _bullet: Prefab | null = null;
   private _bulletAttempts = 0;
@@ -181,12 +186,25 @@ export class TurretGun extends Component {
   start(): void {
     this._loadBullet();
     const scene = this.node.scene;
-    const existing = scene?.getChildByName('10000');
-    if (existing) {
-      this._arm(existing, false);
+    const existing = this._collect(scene);
+    if (existing.length) {
+      for (let i = 0; i < existing.length; i++) this._arm(existing[i], false, i, existing.length);
+      this._focusGroup();
+      if (scene) this._frameCamera(scene);
+      this._ready = true;
       return;
     }
     this._load();
+  }
+
+  private _collect(scene: Node | null): Node[] {
+    const found: Node[] = [];
+    if (!scene) return found;
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      if (kids[i].name === '10000') found.push(kids[i]);
+    }
+    return found;
   }
 
   private _load = (): void => {
@@ -207,29 +225,54 @@ export class TurretGun extends Component {
       scene.addChild(root);
       root.setPosition(0, 0, 0);
       root.setScale(1, 1, 1);
-      this._arm(root, true);
+      this._arm(root, true, 0, 1);
+      this._focusGroup();
+      this._frameCamera(scene);
+      this._ready = true;
     });
   };
 
-  private _arm(root: Node, fit: boolean): void {
+  private _arm(root: Node, fit: boolean, index: number, count: number): void {
     const scene = this.node.scene;
     if (!scene) return;
     const head = findNode(root, 'turrethead');
-    this._head = head;
+    const gun: Gun = {
+      root,
+      head,
+      anim: null,
+      clip: '',
+      muzzle: new Vec3(),
+      forward: new Vec3(0, 0, -1),
+      yawAxis: new Vec3(0, 1, 0),
+      restRot: new Quat(),
+      restPos: new Vec3(),
+      rawPos: new Vec3(),
+      center: new Vec3(),
+      groundY: 0,
+      time: index * 0.35,
+      cool: count > 1 ? (index * SHOT_GAP) / count : 0.45,
+    };
     if (fit) this._place(root);
     root.updateWorldTransform();
-    this._rememberSize(root);
-    this._pad(scene);
-    this._bindAnim(root);
+    this._measure(gun);
+    this._pad(scene, gun);
+    this._bindAnim(gun);
     if (head) {
-      this._restPos.set(head.position);
-      this._rawPos.set(head.position);
+      gun.restPos.set(head.position);
+      gun.rawPos.set(head.position);
     }
-    this._bindMuzzle(head ?? root);
-    this._frameCamera(scene);
-    this._root = root;
-    this._ready = true;
+    this._bindMuzzle(gun);
+    this._guns.push(gun);
     if (!head) console.warn('[TurretGun] TurretHead missing, firing from model root');
+  }
+
+  private _focusGroup(): void {
+    const guns = this._guns;
+    if (!guns.length) return;
+    _center.set(0, 0, 0);
+    for (let i = 0; i < guns.length; i++) _center.add(guns[i].center);
+    _center.multiplyScalar(1 / guns.length);
+    this._focus.set(_center);
   }
 
   private _place(root: Node): void {
@@ -253,11 +296,13 @@ export class TurretGun extends Component {
     this._height = TARGET_HEIGHT;
   }
 
-  private _rememberSize(root: Node): void {
+  private _measure(gun: Gun): void {
+    const root = gun.root;
     const points: Vec3[] = [];
     collectPositions(root, points);
     if (!points.length) {
-      this._focus.set(root.worldPosition.x, root.worldPosition.y + this._height * 0.46, root.worldPosition.z);
+      gun.center.set(root.worldPosition.x, root.worldPosition.y + this._height * 0.46, root.worldPosition.z);
+      gun.groundY = root.worldPosition.y;
       return;
     }
     const min = new Vec3(Infinity, Infinity, Infinity);
@@ -267,14 +312,14 @@ export class TurretGun extends Component {
       Vec3.max(max, max, points[i]);
     }
     this._height = Math.max(max.y - min.y, 0.2);
-    this._focus.set((min.x + max.x) * 0.5, (min.y + max.y) * 0.5, (min.z + max.z) * 0.5);
-    this._groundY = min.y;
+    gun.center.set((min.x + max.x) * 0.5, (min.y + max.y) * 0.5, (min.z + max.z) * 0.5);
+    gun.groundY = min.y;
   }
 
-  private _pad(scene: Node): void {
+  private _pad(scene: Node, gun: Gun): void {
     const pad = new Node('Pad');
     scene.addChild(pad);
-    pad.setPosition(this._focus.x, this._groundY - 0.02, this._focus.z);
+    pad.setPosition(gun.center.x, gun.groundY - 0.02, gun.center.z);
     pad.setScale(this._height * 1.7, 0.04, this._height * 1.7);
     const mr = pad.addComponent(MeshRenderer);
     mr.mesh = utils.MeshUtils.createMesh(primitives.cylinder(1, 1, 1, { radialSegments: 40 }));
@@ -289,8 +334,8 @@ export class TurretGun extends Component {
     mr.setSharedMaterial(mat, 0);
   }
 
-  private _bindAnim(root: Node): void {
-    const anims = root.getComponentsInChildren(Animation);
+  private _bindAnim(gun: Gun): void {
+    const anims = gun.root.getComponentsInChildren(Animation);
     let best: AnimationClip | null = null;
     let host: Animation | null = null;
     for (let i = 0; i < anims.length; i++) {
@@ -308,8 +353,8 @@ export class TurretGun extends Component {
       }
     }
     if (!best || !host) return;
-    this._anim = host;
-    this._clip = best.name;
+    gun.anim = host;
+    gun.clip = best.name;
     const state = host.getState(best.name) ?? host.createState(best, best.name);
     state.wrapMode = AnimationClip.WrapMode.Normal;
     state.repeatCount = 1;
@@ -317,20 +362,21 @@ export class TurretGun extends Component {
     state.sample();
   }
 
-  private _bindMuzzle(head: Node): void {
+  private _bindMuzzle(gun: Gun): void {
+    const head = gun.head ?? gun.root;
     head.updateWorldTransform();
-    this._restRot.set(head.rotation);
+    gun.restRot.set(head.rotation);
     const points: Vec3[] = [];
     collectPositions(head, points);
     const cap = tightestHorizontalCap(points);
     if (cap) {
-      head.inverseTransformPoint(this._muzzle, cap.center);
+      head.inverseTransformPoint(gun.muzzle, cap.center);
       Quat.invert(_yawQ, head.worldRotation);
-      Vec3.transformQuat(this._forward, cap.dir, _yawQ);
-      if (this._forward.lengthSqr() > 1e-8) this._forward.normalize();
+      Vec3.transformQuat(gun.forward, cap.dir, _yawQ);
+      if (gun.forward.lengthSqr() > 1e-8) gun.forward.normalize();
     } else {
-      this._muzzle.set(0, this._height * 0.45, 0);
-      this._forward.set(0, 0, -1);
+      gun.muzzle.set(0, this._height * 0.45, 0);
+      gun.forward.set(0, 0, -1);
     }
     let bestDot = 0;
     const worldRot = head.worldRotation;
@@ -340,8 +386,8 @@ export class TurretGun extends Component {
       const d = Vec3.dot(_wAxis, Vec3.UP);
       if (Math.abs(d) > Math.abs(bestDot)) {
         bestDot = d;
-        this._yawAxis.set(locals[i]);
-        if (d < 0) this._yawAxis.multiplyScalar(-1);
+        gun.yawAxis.set(locals[i]);
+        if (d < 0) gun.yawAxis.multiplyScalar(-1);
       }
     }
   }
@@ -364,41 +410,41 @@ export class TurretGun extends Component {
     cam.clearColor = new Color(6, 10, 18, 255);
   }
 
-  private _applyYaw(): void {
-    const head = this._head;
+  private _applyYaw(gun: Gun): void {
+    const head = gun.head;
     if (!head?.isValid) return;
-    const state = this._clip ? this._anim?.getState(this._clip) : null;
-    if (state?.isPlaying) this._rawPos.set(head.position);
-    else this._rawPos.set(this._restPos);
-    const yaw = Math.sin(this._time * 0.65) * 0.95;
-    Quat.fromAxisAngle(_yawQ, this._yawAxis, yaw);
-    Quat.multiply(_spin, this._restRot, _yawQ);
+    const state = gun.clip ? gun.anim?.getState(gun.clip) : null;
+    if (state?.isPlaying) gun.rawPos.set(head.position);
+    else gun.rawPos.set(gun.restPos);
+    const yaw = Math.sin(gun.time * 0.65) * 0.95;
+    Quat.fromAxisAngle(_yawQ, gun.yawAxis, yaw);
+    Quat.multiply(_spin, gun.restRot, _yawQ);
     head.setRotation(_spin);
-    _local.set(this._rawPos);
-    _local.subtract(this._restPos);
+    _local.set(gun.rawPos);
+    _local.subtract(gun.restPos);
     Quat.fromAxisAngle(_yawQ, Vec3.UP, yaw);
     Vec3.transformQuat(_local, _local, _yawQ);
-    _local.add(this._restPos);
+    _local.add(gun.restPos);
     head.setPosition(_local);
   }
 
-  private _fire(): void {
-    const head = this._head;
+  private _fire(gun: Gun): void {
+    const head = gun.head ?? gun.root;
     const scene = this.node.scene;
     if (!head?.isValid || !scene) return;
-    if (this._anim && this._clip) {
-      const state = this._anim.getState(this._clip);
+    if (gun.anim && gun.clip) {
+      const state = gun.anim.getState(gun.clip);
       if (state) {
         state.wrapMode = AnimationClip.WrapMode.Normal;
         state.repeatCount = 1;
         state.time = 0;
       }
-      this._anim.play(this._clip);
-      this._applyYaw();
+      gun.anim.play(gun.clip);
+      this._applyYaw(gun);
     }
     head.updateWorldTransform();
-    Vec3.transformMat4(_world, this._muzzle, head.worldMatrix);
-    Vec3.transformQuat(_dir, this._forward, head.worldRotation);
+    Vec3.transformMat4(_world, gun.muzzle, head.worldMatrix);
+    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
     if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, -1);
     _dir.normalize();
     Vec3.scaleAndAdd(_world, _world, _dir, this._height * 0.04);
@@ -424,11 +470,16 @@ export class TurretGun extends Component {
   private _afterUpdate = (): void => {
     if (!this._ready) return;
     const dt = game.deltaTime;
-    this._time += dt;
-    this._applyYaw();
-    this._cool -= dt;
-    if (this._cool > 0) return;
-    this._cool = SHOT_GAP;
-    this._fire();
+    const guns = this._guns;
+    for (let i = 0; i < guns.length; i++) {
+      const gun = guns[i];
+      if (!gun.root.isValid) continue;
+      gun.time += dt;
+      this._applyYaw(gun);
+      gun.cool -= dt;
+      if (gun.cool > 0) continue;
+      gun.cool = SHOT_GAP;
+      this._fire(gun);
+    }
   };
 }
