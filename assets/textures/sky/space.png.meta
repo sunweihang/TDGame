@@ -1,0 +1,137 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "b47c0": {
+      "importer": "erp-texture-cube",
+      "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0",
+      "displayName": "space",
+      "id": "b47c0",
+      "name": "textureCube",
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 16,
+        "faceSize": 4096,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01",
+        "isRGBE": false,
+        "imageDatabaseUri": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01"
+      },
+      "ver": "1.0.10",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {
+        "74afd": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@74afd",
+          "displayName": "",
+          "id": "74afd",
+          "name": "right",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        },
+        "8fd34": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@8fd34",
+          "displayName": "",
+          "id": "8fd34",
+          "name": "left",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        },
+        "bb97f": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@bb97f",
+          "displayName": "",
+          "id": "bb97f",
+          "name": "top",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        },
+        "7d38f": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@7d38f",
+          "displayName": "",
+          "id": "7d38f",
+          "name": "bottom",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        },
+        "e9a6d": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@e9a6d",
+          "displayName": "",
+          "id": "e9a6d",
+          "name": "front",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        },
+        "40c10": {
+          "importer": "texture-cube-face",
+          "uuid": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0@40c10",
+          "displayName": "",
+          "id": "40c10",
+          "name": "back",
+          "userData": {},
+          "ver": "1.0.0",
+          "imported": true,
+          "files": [
+            ".json",
+            ".png"
+          ],
+          "subMetas": {}
+        }
+      }
+    }
+  },
+  "userData": {
+    "type": "texture cube",
+    "fixAlphaTransparencyArtifacts": false,
+    "hasAlpha": false,
+    "redirect": "a7c3e1b4-9d20-4f6a-8c15-2e8b7a4d6f01@b47c0",
+    "isRGBE": false,
+    "flipVertical": false
+  }
+}

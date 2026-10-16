@@ -1,0 +1,42 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "a4c8e2d1-6b37-4f90-8c15-3e7a9b2d5f61",
+  "files": [
+    ".jpg",
+    ".json"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "a4c8e2d1-6b37-4f90-8c15-3e7a9b2d5f61@6c48a",
+      "displayName": "lava-ground",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "clamp-to-edge",
+        "wrapModeT": "clamp-to-edge",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "linear",
+        "anisotropy": 16,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "a4c8e2d1-6b37-4f90-8c15-3e7a9b2d5f61",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "texture",
+    "fixAlphaTransparencyArtifacts": false,
+    "hasAlpha": false,
+    "redirect": "a4c8e2d1-6b37-4f90-8c15-3e7a9b2d5f61@6c48a"
+  }
+}

@@ -1,0 +1,148 @@
+<html>
+    <head>
+        <link rel="icon" href="./favicon.ico" />
+        <meta charset="utf-8" />
+        <title><%=title%></title>
+        <meta
+            name="viewport"
+            content="width=device-width,user-scalable=no,initial-scale=1,minimum-scale=1,maximum-scale=1,minimal-ui=true,viewport-fit=cover"
+        />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="full-screen" content="yes" />
+        <meta name="screen-orientation" content="portrait" />
+        <meta name="x5-fullscreen" content="true" />
+        <meta name="360-fullscreen" content="true" />
+        <meta name="renderer" content="webkit" />
+        <meta name="force-rendering" content="webkit" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+
+        <link rel="stylesheet" type="text/css" href="./index.css" />
+        <style>
+            /* Replace Cocos preview splash with elex branding. */
+            #splash {
+                visibility: visible !important;
+                z-index: 9999 !important;
+                background: #000 !important;
+            }
+            #splash.is-done {
+                display: none !important;
+            }
+            /* <img> avoids CSS-background race: splash can dismiss before url() decodes. */
+            #splash .elex-splash {
+                position: absolute;
+                inset: 0;
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+                pointer-events: none;
+                background: #000;
+            }
+            #splash .progress-bar {
+                display: none !important;
+            }
+
+            /*
+             * Lock GameDiv to max 9:16. Outside the frame is black.
+             * Engine SHOW_ALL / FIXED_WIDTH keeps design width at 1080.
+             */
+            .content,
+            .contentWrap {
+                background-color: #000 !important;
+            }
+            #GameDiv {
+                position: relative !important;
+                flex: none !important;
+                width: var(--game-frame-width, auto) !important;
+                height: var(--game-frame-height, 100%) !important;
+                max-width: 100% !important;
+                max-height: 100% !important;
+                aspect-ratio: 9 / 16 !important;
+                margin: auto !important;
+                overflow: hidden !important;
+                background-color: #000 !important;
+            }
+            #Cocos3dGameContainer,
+            #GameCanvas {
+                width: 100% !important;
+                height: 100% !important;
+                background-color: #000 !important;
+            }
+
+            /* Hide Cocos preview debug toolbar (design res / FPS / Pause). */
+            .toolbar {
+                display: none !important;
+            }
+            .content {
+                top: 0 !important;
+                height: 100% !important;
+            }
+        </style>
+    </head>
+    <body style="overflow: hidden; background-color: #000;">
+        <%# Toolbar kept in template for Cocos preview injection; hidden via CSS above. %>
+        <%- include(cocosToolBar, {config: config}) %>
+        <div id="content" class="content" style="overflow: hidden; background-color: #000;">
+            <div class="contentWrap">
+                <!-- 9:16 frame; black outside. Design 1080 fills this frame. -->
+                <div id="GameDiv" class="wrapper" cc_exact_fit_screen="false">
+                    <div id="Cocos3dGameContainer">
+                        <canvas id="GameCanvas" tabindex="-1" style="background-color: #000;"></canvas>
+                    </div>
+                    <div id="splash">
+                        <img class="elex-splash" src="./splash_screen.png" alt="elex" />
+                        <div class="progress-bar stripes"><span></span></div>
+                    </div>
+                    <div id="bulletin">
+                        <div id="sceneIsEmpty" class="inner"><%=tip_sceneIsEmpty%></div>
+                    </div>
+                    <div class="error" id="error">
+                        <div class="title">Error <i>(Please open the console to see detailed errors)</i></div>
+                        <div class="error-main"></div>
+                        <div class="error-stack"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <%- include(cocosTemplate, {}) %>
+        <link rel="preload" as="image" href="./splash_screen.png" />
+        <script>
+            // Patch engine splash before bootstrap: no Cocos logo.
+            // Elex art is the #splash <img> (reliable); engine canvas stays black.
+            // (Previously base64:'./splash_screen.png' was invalid and raced to a blank canvas.)
+            (function () {
+                var settings = window._CCSettings;
+                if (!settings) {
+                    return;
+                }
+                var splash = settings.splashScreen || (settings.splashScreen = {});
+                // Branding is DOM #splash only — in-game cover stays black (no second elex).
+                splash.totalTime = 0;
+                splash.displayRatio = 1;
+                splash.logo = { type: 'none' };
+                splash.background = {
+                    type: 'color',
+                    color: { x: 0, y: 0, z: 0, w: 1 },
+                };
+            })();
+
+            // Remove DOM splash only when GameBootstrap says login shell is ready.
+            // No min-delay after ready — that caused a black/blue gap before the title.
+            (function () {
+                var MAX_MS = 15000;
+                var done = false;
+                function hideSplash() {
+                    if (done) return;
+                    done = true;
+                    var el = document.getElementById('splash');
+                    if (el) el.classList.add('is-done');
+                }
+                if (window.__elexArtReady) hideSplash();
+                else window.addEventListener('elex-art-ready', hideSplash);
+                setTimeout(hideSplash, MAX_MS);
+            })();
+        </script>
+        <script src="./game-frame.js"></script>
+    </body>
+</html>

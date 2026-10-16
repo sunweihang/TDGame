@@ -1,0 +1,14 @@
+---
+description: Call the installed 3ds Max 2022 executable
+alwaysApply: true
+---
+
+3ds Max on this machine is `D:\SoftData\3DMax\3ds Max 2022\3dsmax.exe`. When the user says 3dmax, 3ds Max, or 3xmax, call this executable. Do not call `3dsmaxbatch.exe`, and do not search for another install.
+
+Launch the GUI executable with the MaxScript switch:
+
+```
+& "D:\SoftData\3DMax\3ds Max 2022\3dsmax.exe" -U MAXScript d:\Custom\TD\tools\max\<script>.ms
+```
+
+MaxScript files must be ASCII without a UTF-8 BOM. The script should `quitMax quiet:true` after it writes its result, so the process does not stay open.

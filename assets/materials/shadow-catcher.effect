@@ -1,0 +1,85 @@
+// Invisible ground that only darkens where the directional shadow map falls.
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: catcher-vs:vert
+      frag: catcher-fs:frag
+      depthStencilState:
+        depthTest: true
+        depthWrite: false
+        depthFunc: less_equal
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      rasterizerState:
+        cullMode: none
+      properties:
+        shadowStrength: { value: 0.75, editor: { slide: true, range: [0.0, 1.0], step: 0.01 } }
+}%
+
+CCProgram catcher-vs %{
+  precision highp float;
+  #include <legacy/input>
+  #include <builtin/uniforms/cc-global>
+  #include <legacy/decode-base>
+  #include <legacy/local-batch>
+  #include <legacy/shadow-map-vs>
+
+  out vec3 v_worldPos;
+  out vec3 v_normal;
+  out vec2 v_shadowBias;
+
+  vec4 vert () {
+    vec4 position;
+    CCVertInput(position);
+
+    mat4 matWorld, matWorldIT;
+    CCGetWorldMatrixFull(matWorld, matWorldIT);
+
+    vec4 worldPos = matWorld * position;
+    v_worldPos = worldPos.xyz;
+    v_normal = normalize((matWorldIT * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+
+    #if CC_RECEIVE_SHADOW
+      v_shadowBias = CCGetShadowBias();
+    #else
+      v_shadowBias = vec2(0.0);
+    #endif
+    CC_TRANSFER_SHADOW(worldPos);
+
+    return cc_matProj * cc_matView * worldPos;
+  }
+}%
+
+CCProgram catcher-fs %{
+  precision highp float;
+  #include <legacy/shadow-map-fs>
+  #include <legacy/output>
+
+  in vec3 v_worldPos;
+  in vec3 v_normal;
+  in vec2 v_shadowBias;
+
+  uniform Constants {
+    float shadowStrength;
+  };
+
+  vec4 frag () {
+    float shadow = 1.0;
+    #if CC_RECEIVE_SHADOW
+      vec3 N = normalize(v_normal);
+      #if CC_DIR_LIGHT_SHADOW_TYPE == CC_DIR_LIGHT_SHADOW_CASCADED
+        shadow = CCCSMFactorBase(v_worldPos, N, v_shadowBias);
+      #else
+        shadow = CCShadowFactorBase(v_shadowPos, N, v_shadowBias);
+      #endif
+    #endif
+    float darkness = (1.0 - clamp(shadow, 0.0, 1.0)) * shadowStrength;
+    return CCFragOutput(vec4(0.0, 0.0, 0.0, darkness));
+  }
+}%

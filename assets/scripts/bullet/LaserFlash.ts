@@ -1,5 +1,5 @@
 import { _decorator, Component } from 'cc';
-import { LaserBillboard } from './LaserBillboard';
+import { LaserBillboard } from './LaserBillboard.ts';
 
 const { ccclass } = _decorator;
 

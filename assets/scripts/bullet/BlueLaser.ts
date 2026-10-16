@@ -14,8 +14,9 @@ import {
   instantiate,
   utils,
 } from 'cc';
-import { LaserBillboard } from './LaserBillboard';
-import { LaserFlash } from './LaserFlash';
+import { LaserBillboard } from './LaserBillboard.ts';
+import { LaserFlash } from './LaserFlash.ts';
+import { MONSTER_HIT_R, MonsterUnit } from '../monster/MonsterUnit.ts';
 
 const { ccclass } = _decorator;
 
@@ -224,11 +225,36 @@ export class BlueLaserBolt extends Component {
     tip.addComponent(LaserBillboard);
   }
 
+  private _hitMonster(): boolean {
+    const p = this.node.worldPosition;
+    const units = MonsterUnit.all;
+    const r2 = MONSTER_HIT_R * MONSTER_HIT_R;
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
+      if (!unit.threat || !unit.node?.isValid) continue;
+      const m = unit.node.worldPosition;
+      const dx = p.x - m.x;
+      const dz = p.z - m.z;
+      if (dx * dx + dz * dz > r2) continue;
+      unit.damage(14);
+      const scene = this.node.scene;
+      if (scene) {
+        const flash = createLaserFlash(scene, p, this._height * 0.45, 0.12);
+        flash.setWorldPosition(p);
+      }
+      this._burst = true;
+      this.node.destroy();
+      return true;
+    }
+    return false;
+  }
+
   update(dt: number): void {
     const step = this._speed * dt;
     const p = this.node.worldPosition;
     _aim.set(p.x + this._dir.x * step, p.y + this._dir.y * step, p.z + this._dir.z * step);
     this.node.setWorldPosition(_aim);
+    if (this._hitMonster()) return;
     this._age += dt;
     if (this._age < this._life) return;
     const scene = this.node.scene;

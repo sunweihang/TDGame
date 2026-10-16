@@ -1,0 +1,10 @@
+---
+description: Monster ID, model name, and animation clips
+alwaysApply: true
+---
+
+Monster IDs are decimal numbers starting at 30000. The current monster is 30000, the rock creature. The next new monster is 30001, then 30002, and so on. Never reuse or skip an assigned ID.
+
+The model file and its root node use the ID as the name, with no prefix: `assets/models/monster/30000.fbx`, node `30000`. Scene instances use that same name.
+
+Monster 30000 is Z-up in the FBX: feet on Z = 0, the face points to +Y, and the node scale is 1. It is 4.00 meters tall, the same height as turret 10000 (about 157.5 units in 3ds Max). Its clips are named `attack`, `run`, and `dead`. `run` loops. `attack` and `dead` play once, and `dead` holds its last pose. Do not leave the default `Take 001` name.
