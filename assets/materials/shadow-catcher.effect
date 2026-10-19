@@ -80,6 +80,7 @@ CCProgram catcher-fs %{
       #endif
     #endif
     float darkness = (1.0 - clamp(shadow, 0.0, 1.0)) * shadowStrength;
-    return CCFragOutput(vec4(0.0, 0.0, 0.0, darkness));
+    vec3 shade = vec3(0.06, 0.045, 0.04);
+    return CCFragOutput(vec4(shade, darkness));
   }
 }%

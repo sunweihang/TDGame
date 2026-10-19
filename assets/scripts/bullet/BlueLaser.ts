@@ -16,7 +16,7 @@ import {
 } from 'cc';
 import { LaserBillboard } from './LaserBillboard.ts';
 import { LaserFlash } from './LaserFlash.ts';
-import { MONSTER_HIT_R, MonsterUnit } from '../monster/MonsterUnit.ts';
+import { MonsterUnit } from '../monster/MonsterUnit.ts';
 
 const { ccclass } = _decorator;
 
@@ -40,8 +40,8 @@ function profile(t: number): number {
 }
 
 function tint(t: number): [number, number, number, number] {
-  const r = 1 - t * 0.5;
-  const g = 1 - t * 0.28;
+  const r = 0.32 + (1 - t) * 0.28;
+  const g = 0.62 + (1 - t) * 0.22;
   const b = 1;
   const a = t < 0.18 ? 1 : Math.max(0, 1 - (t - 0.18) / 0.82);
   return [r, g, b, a];
@@ -150,12 +150,12 @@ function unlit(technique: number, color: Color, texture: boolean): Material {
 }
 
 function coreMat(): Material {
-  if (!_coreMat) _coreMat = unlit(3, new Color(255, 255, 255, 255), false);
+  if (!_coreMat) _coreMat = unlit(3, new Color(176, 214, 255, 255), false);
   return _coreMat;
 }
 
 function haloMat(): Material {
-  if (!_haloMat) _haloMat = unlit(2, new Color(70, 168, 255, 255), false);
+  if (!_haloMat) _haloMat = unlit(2, new Color(64, 156, 255, 255), false);
   return _haloMat;
 }
 
@@ -165,8 +165,14 @@ function tipMat(): Material {
 }
 
 function flashMat(): Material {
-  if (!_flashMat) _flashMat = unlit(2, new Color(150, 214, 255, 255), true);
+  if (!_flashMat) _flashMat = unlit(2, new Color(160, 210, 255, 255), true);
   return _flashMat;
+}
+
+let _bloomMat: Material | null = null;
+function bloomMat(): Material {
+  if (!_bloomMat) _bloomMat = unlit(2, new Color(50, 140, 255, 170), true);
+  return _bloomMat;
 }
 
 function paint(node: Node, mesh: Mesh, mat: Material, priority: number): MeshRenderer {
@@ -202,8 +208,8 @@ export class BlueLaserBolt extends Component {
 
   private _ensureVisual(): void {
     if (this.node.getChildByName('Shape')) return;
-    const length = this._height * 0.46;
-    const radius = this._height * 0.014;
+    const length = this._height * 0.62;
+    const radius = this._height * 0.026;
     const shape = new Node('Shape');
     this.node.addChild(shape);
     shape.setScale(radius, radius, length);
@@ -214,7 +220,7 @@ export class BlueLaserBolt extends Component {
 
     const halo = new Node('Halo');
     shape.addChild(halo);
-    halo.setScale(2.15, 2.15, 1);
+    halo.setScale(4.2, 4.2, 1);
     paint(halo, spindleMesh(), haloMat(), 110);
 
     const tip = new Node('Tip');
@@ -228,18 +234,18 @@ export class BlueLaserBolt extends Component {
   private _hitMonster(): boolean {
     const p = this.node.worldPosition;
     const units = MonsterUnit.all;
-    const r2 = MONSTER_HIT_R * MONSTER_HIT_R;
     for (let i = 0; i < units.length; i++) {
       const unit = units[i];
       if (!unit.threat || !unit.node?.isValid) continue;
       const m = unit.node.worldPosition;
       const dx = p.x - m.x;
       const dz = p.z - m.z;
-      if (dx * dx + dz * dz > r2) continue;
+      const reach = unit.hitRadius;
+      if (dx * dx + dz * dz > reach * reach) continue;
       unit.damage(14);
       const scene = this.node.scene;
       if (scene) {
-        const flash = createLaserFlash(scene, p, this._height * 0.45, 0.12);
+        const flash = createLaserFlash(scene, p, this._height * 0.95, 0.18);
         flash.setWorldPosition(p);
       }
       this._burst = true;
@@ -260,7 +266,7 @@ export class BlueLaserBolt extends Component {
     const scene = this.node.scene;
     if (!this._burst && scene) {
       this._burst = true;
-      const flash = createLaserFlash(scene, this.node.worldPosition, this._height * 0.55, 0.14);
+      const flash = createLaserFlash(scene, this.node.worldPosition, this._height * 1.05, 0.2);
       flash.setWorldPosition(this.node.worldPosition);
     }
     this.node.destroy();
@@ -282,6 +288,14 @@ export function createLaserFlash(parent: Node, worldPos: Vec3, size: number, lif
   const flash = node.addComponent(LaserFlash);
   flash.life = life;
   node.addComponent(LaserBillboard);
+  const bloom = new Node('LaserBloom');
+  parent.addChild(bloom);
+  bloom.setWorldPosition(worldPos);
+  paint(bloom, quadMesh(), bloomMat(), 135);
+  fitDisc(bloom, size * 2.15);
+  const outer = bloom.addComponent(LaserFlash);
+  outer.life = life * 1.15;
+  bloom.addComponent(LaserBillboard);
   return node;
 }
 

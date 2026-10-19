@@ -135,8 +135,12 @@
                 function hideSplash() {
                     if (done) return;
                     done = true;
+                    window.__elexArtReady = true;
                     var el = document.getElementById('splash');
-                    if (el) el.classList.add('is-done');
+                    if (!el) return;
+                    el.classList.add('is-done');
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
                 }
                 if (window.__elexArtReady) hideSplash();
                 else window.addEventListener('elex-art-ready', hideSplash);

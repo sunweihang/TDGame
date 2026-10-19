@@ -1,4 +1,7 @@
-import { _decorator, AnimationClip, Component, SkeletalAnimation, Vec3 } from 'cc';
+import { _decorator, AnimationClip, Component, Node, SkeletalAnimation, Vec3 } from 'cc';
+import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
+import { playBloodSpray } from '../effect/BloodSpray.ts';
+import { showDmgFont } from '../effect/DmgFont.ts';
 import { TurretPlate } from '../turret/TurretPlate.ts';
 
 const { ccclass } = _decorator;
@@ -9,6 +12,7 @@ const FOOT_Y = 0.02;
 const BODY_GAP = 3.46;
 const _pos = new Vec3();
 const _look = new Vec3();
+const _spray = new Vec3();
 
 type Phase = 'run' | 'attack' | 'dead';
 
@@ -26,7 +30,10 @@ export class MonsterUnit extends Component {
   static all: MonsterUnit[] = [];
 
   hp = 42;
+  size = 1;
+  bite = 8;
   private _anim: SkeletalAnimation | null = null;
+  private _vat: VertexAnimPlayer | null = null;
   private _run = '';
   private _attack = '';
   private _dead = '';
@@ -38,21 +45,37 @@ export class MonsterUnit extends Component {
     return this._phase !== 'dead' && this.hp > 0;
   }
 
+  get hitRadius(): number {
+    return HIT_R * this.size;
+  }
+
   aimPoint(out: Vec3): Vec3 {
     const p = this.node.worldPosition;
-    out.set(p.x, p.y + 2.1, p.z);
+    out.set(p.x, p.y + 2.1 * this.size, p.z);
     return out;
   }
 
   damage(amount: number): void {
     if (!this.threat) return;
     this.hp -= amount;
+    showDmgFont(this.node, amount, 'hit');
+    const scene = this.node.scene;
+    if (scene) playBloodSpray(scene, this.aimPoint(_spray));
     if (this.hp > 0) return;
     this._die();
   }
 
+  /** Crown marker. Monster 30000 is 4 m tall; the pop reads this point. */
+  private _markBlood(): void {
+    if (this.node.getChildByName('blood')) return;
+    const blood = new Node('blood');
+    this.node.addChild(blood);
+    blood.setPosition(0, 4.2, 0);
+  }
+
   onEnable(): void {
     MonsterUnit.all.push(this);
+    this._markBlood();
   }
 
   onDisable(): void {
@@ -61,6 +84,15 @@ export class MonsterUnit extends Component {
   }
 
   start(): void {
+    const vat = this.getComponent(VertexAnimPlayer);
+    if (vat) {
+      this._vat = vat;
+      this._run = vat.clipName('run', 1);
+      this._attack = vat.clipName('attack', 0);
+      this._dead = vat.clipName('dead', 2);
+      this._play(this._run, AnimationClip.WrapMode.Loop);
+      return;
+    }
     const anim = this.node.getComponent(SkeletalAnimation) ?? this.node.getComponentInChildren(SkeletalAnimation);
     this._anim = anim;
     if (!anim) return;
@@ -118,8 +150,9 @@ export class MonsterUnit extends Component {
       const ox = x - op.x;
       const oz = z - op.z;
       const d2 = ox * ox + oz * oz;
-      if (d2 > BODY_GAP * BODY_GAP || d2 < 1e-6) continue;
-      const push = (BODY_GAP - Math.sqrt(d2)) * 0.45;
+      const gap = (this.size + other.size) * 0.5 * BODY_GAP;
+      if (d2 > gap * gap || d2 < 1e-6) continue;
+      const push = (gap - Math.sqrt(d2)) * 0.45;
       const inv = 1 / Math.sqrt(d2);
       x += ox * inv * push;
       z += oz * inv * push;
@@ -129,24 +162,42 @@ export class MonsterUnit extends Component {
   }
 
   private _chop(plate: TurretPlate): void {
-    const anim = this._anim;
     if (this._phase !== 'attack') {
       this._phase = 'attack';
       this._hurt = false;
       this._play(this._attack, AnimationClip.WrapMode.Normal);
     }
-    if (!anim || !this._attack) return;
-    const state = anim.getState(this._attack);
-    if (!state) return;
-    if (state.isPlaying) {
-      if (!this._hurt && state.time > state.duration * 0.62) {
+    const clock = this._clock();
+    if (!clock) return;
+    if (clock.playing) {
+      if (!this._hurt && clock.duration > 0 && clock.time > clock.duration * 0.62) {
         this._hurt = true;
-        plate.damage(8);
+        plate.damage(this.bite);
       }
       return;
     }
-    if (state.time <= 0) return;
+    if (clock.time <= 0) return;
     this._hurt = false;
+    this._replayAttack();
+  }
+
+  private _clock(): { time: number; duration: number; playing: boolean } | null {
+    const vat = this._vat;
+    if (vat) return { time: vat.time, duration: vat.duration, playing: vat.isPlaying };
+    const anim = this._anim;
+    if (!anim || !this._attack) return null;
+    const state = anim.getState(this._attack);
+    if (!state) return null;
+    return { time: state.time, duration: state.duration, playing: state.isPlaying };
+  }
+
+  private _replayAttack(): void {
+    if (this._vat) {
+      this._vat.replay();
+      return;
+    }
+    const state = this._anim?.getState(this._attack);
+    if (!state) return;
     state.time = 0;
     state.play();
   }
@@ -161,6 +212,11 @@ export class MonsterUnit extends Component {
   }
 
   private _play(name: string, wrap: AnimationClip.WrapMode): void {
+    const vat = this._vat;
+    if (vat) {
+      if (name) vat.play(name, wrap === AnimationClip.WrapMode.Loop ? 2 : 1);
+      return;
+    }
     const anim = this._anim;
     if (!anim || !name) return;
     let state = anim.getState(name);

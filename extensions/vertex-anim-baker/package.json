@@ -1,0 +1,35 @@
+{
+  "package_version": 2,
+  "name": "vertex-anim-baker",
+  "version": "1.0.0",
+  "author": "TD",
+  "editor": ">=3.8.0",
+  "description": "把骨骼动画烘焙成 GPU 顶点动画",
+  "main": "./main.js",
+  "contributions": {
+    "scene": {
+      "script": "./scene.js"
+    },
+    "menu": [
+      {
+        "path": "i18n:menu.project",
+        "label": "烘焙 GPU 顶点动画",
+        "message": "bake"
+      }
+    ],
+    "messages": {
+      "bake": {
+        "methods": ["bake"]
+      },
+      "bake-asset": {
+        "methods": ["bakeAsset"]
+      }
+    },
+    "assets": {
+      "menu": {
+        "methods": "./assets-menu.js",
+        "assetMenu": "onAssetMenu"
+      }
+    }
+  }
+}

@@ -41,8 +41,8 @@ const _rest = new Quat();
 const _axis = new Vec3();
 const _wAxis = new Vec3();
 const _side = new Vec3();
-const _spec = new Color(206, 188, 168, 255);
-const _dust = new Color(214, 210, 206, 255);
+const _spec = new Color(200, 214, 232, 255);
+const _dust = new Color(232, 236, 244, 255);
 
 function toneTurret(root: Node): void {
   const renderers = root.getComponentsInChildren(MeshRenderer);
@@ -188,11 +188,12 @@ function collectPositions(node: Node, out: Vec3[]): void {
   for (let i = 0; i < node.children.length; i++) collectPositions(node.children[i], out);
 }
 
-/** Horizontal size of a turret. The longer side is one grid cell. */
+/** Horizontal size of the turret base. The barrel is ignored so the pedestal sits in the cell. */
 export function measureTurretXZ(root: Node): { spanX: number; spanZ: number; cx: number; cz: number } | null {
   root.updateWorldTransform();
+  const base = findNode(root, 'turretbase') ?? root;
   const points: Vec3[] = [];
-  collectPositions(root, points);
+  collectPositions(base, points);
   if (points.length < 3) return null;
   let minX = Infinity;
   let maxX = -Infinity;

@@ -60,8 +60,11 @@ System.register(["./application.js"], function (_export, _context) {
     }
     var el = document.getElementById('splash');
     elexSplashHidden = true;
+    window.__elexArtReady = true;
     if (el) {
       el.classList.add('is-done');
+      el.style.setProperty('display', 'none', 'important');
+      el.style.setProperty('visibility', 'hidden', 'important');
     }
   }
   function hideElexSplash() {

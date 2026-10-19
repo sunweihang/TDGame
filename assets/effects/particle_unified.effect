@@ -1,0 +1,306 @@
+/**
+ * 作者：Plus（kdygxy@163.com）
+ * 时间：2026年3月20日
+ * 版本：v1.0
+ * 描述：mesh通用材质
+ */
+
+CCEffect %{
+  temporaries:
+    b1: &b1
+      targets:
+      - blend: true
+        blendSrc: src_alpha
+        blendDst: one
+        blendSrcAlpha: src_alpha
+        blendDstAlpha: one
+    b2: &b2
+      targets:
+      - blend: true
+        blendSrc: src_alpha
+        blendDst: one_minus_src_alpha
+        blendSrcAlpha: zero
+        blendDstAlpha: one
+        blendAlphaEq: max
+    d1: &d1 { depthTest: true, depthWrite: false }
+    r1: &r1 { cullMode: none }
+
+  techniques:
+  - name: add
+    passes:
+    - vert: builtin/internal/particle-vs-legacy:lpvs_main
+      frag: tinted-fs:add
+      rasterizerState: *r1
+      depthStencilState: *d1
+      blendState: *b1
+      properties:
+        mainTexture:               { value: grey }
+        secondTexture:             { value: white }
+        mainTiling_Offset:         { value: [1, 1, 0, 0]  }
+        mainTextureTiling_Offset:  { value: [1, 1, 0, 0]  }
+        mainColor:                 { value: [1, 1, 1, 1], editor: { type: color } }
+        ColorEnhance:              { value: 1 }
+        AlphaEnhance:              { value: 1 }
+        #if USE_FLOW
+        main_u_speed:              { value: 0.0 }
+        main_v_speed:              { value: 0.0 }
+        #endif
+        #if USE_ROTATE
+        rotate:                    { value: 0, editor: { range: [0, 360], step: 1 } }
+        #endif
+        #if USE_MASK
+        MaskTex:                   { value: white }
+        MaskTexTiling_Offset:      { value: [1, 1, 0, 0]  }
+        MaskRotate:                { value: 0, editor: { range: [0, 360], step: 1 } }
+        mask_u_speed:              { value: 0.0 }
+        mask_v_speed:              { value: 0.0 }
+        #endif
+        #if USE_DISTORT
+        distortTexture:            { value: white }
+        distortTiling_Offset:     { value: [1, 1, 0, 0]  }
+        distortStreagth:           { value: 0.0, editor: { range: [0, 1], step: 0.01 } }
+        distort_u_speed:           { value: 0.0 }
+        distort_v_speed:           { value: 0.0 }
+        #endif
+        #if USE_DISTORT_MASK
+        distortMaskTex:            { value: white }
+        distortMaskTiling_Offset: { value: [1, 1, 0, 0]  }
+        distortMask_u_speed:       { value: 0.0 }
+        distortMask_v_speed:       { value: 0.0 }
+        #endif
+        #if USE_DISSOLVE
+        dissolveTex:               { value: white }
+        dissolveTiling_Offset:    { value: [1, 1, 0, 0]  }
+        dissolveThreshold:         { value: 0, editor: { range: [-10, 10], step: 0.01 } }
+        dissolve_u_speed:          { value: 0.0 }
+        dissolve_v_speed:          { value: 0.0 }
+        #endif
+        #if USE_DISSOLVE_MASK
+        dissolveMaskTex:            { value: white }
+        dissolveMaskTiling_Offset: { value: [1, 1, 0, 0]  }
+        dissolveMask_u_speed:       { value: 0.0 }
+        dissolveMask_v_speed:       { value: 0.0 }
+        #endif
+    - vert: builtin/internal/particle-vs-legacy:lpvs_main
+      frag: tinted-fs:add
+      phase: deferred-forward
+      rasterizerState: *r1
+      depthStencilState: *d1
+      blendState: *b1
+      propertyIndex: 0
+  - name: transparent
+    passes:
+    - vert: builtin/internal/particle-vs-legacy:lpvs_main
+      frag: tinted-fs:add
+      rasterizerState: *r1
+      depthStencilState: *d1
+      blendState: *b2
+      properties:
+        mainTexture:               { value: grey }
+        secondTexture:             { value: white }
+        mainTiling_Offset:         { value: [1, 1, 0, 0]  }
+        mainTextureTiling_Offset:  { value: [1, 1, 0, 0]  }
+        mainColor:                 { value: [1, 1, 1, 1], editor: { type: color } }
+        ColorEnhance:              { value: 1 }
+        AlphaEnhance:              { value: 1 }
+        #if USE_FLOW
+        main_u_speed:              { value: 0.0 }
+        main_v_speed:              { value: 0.0 }
+        #endif
+        #if USE_ROTATE
+        rotate:                    { value: 0, editor: { range: [0, 360], step: 1 } }
+        #endif
+        #if USE_MASK
+        MaskTex:                   { value: white }
+        MaskTexTiling_Offset:      { value: [1, 1, 0, 0]  }
+        MaskRotate:                { value: 0, editor: { range: [0, 360], step: 1 } }
+        mask_u_speed:              { value: 0.0 }
+        mask_v_speed:              { value: 0.0 }
+        #endif
+        #if USE_DISTORT
+        distortTexture:            { value: white }
+        distortTiling_Offset:     { value: [1, 1, 0, 0]  }
+        distortStreagth:           { value: 0.0, editor: { range: [0, 1], step: 0.01 } }
+        distort_u_speed:           { value: 0.0 }
+        distort_v_speed:           { value: 0.0 }
+        #endif
+        #if USE_DISTORT_MASK
+        distortMaskTex:            { value: white }
+        distortMaskTiling_Offset: { value: [1, 1, 0, 0]  }
+        distortMask_u_speed:       { value: 0.0 }
+        distortMask_v_speed:       { value: 0.0 }
+        #endif
+        #if USE_DISSOLVE
+        dissolveTex:               { value: white }
+        dissolveTiling_Offset:    { value: [1, 1, 0, 0]  }
+        dissolveThreshold:         { value: 0, editor: { range: [-10, 10], step: 0.01 } }
+        dissolve_u_speed:          { value: 0.0 }
+        dissolve_v_speed:          { value: 0.0 }
+        #endif
+        #if USE_DISSOLVE_MASK
+        dissolveMaskTex:            { value: white }
+        dissolveMaskTiling_Offset: { value: [1, 1, 0, 0]  }
+        dissolveMask_u_speed:       { value: 0.0 }
+        dissolveMask_v_speed:       { value: 0.0 }
+        #endif
+    - vert: builtin/internal/particle-vs-legacy:lpvs_main
+      frag: tinted-fs:add
+      phase: deferred-forward
+      rasterizerState: *r1
+      depthStencilState: *d1
+      blendState: *b2
+      propertyIndex: 0
+}%
+
+CCProgram tinted-fs %{
+  precision mediump float;
+  #include <legacy/output>
+
+  in vec2 uv;
+  in vec4 color;
+
+  uniform sampler2D mainTexture;
+  uniform sampler2D secondTexture;
+  uniform FragConstants {
+    vec4 mainColor;
+    vec4 mainTextureTiling_Offset;
+    float ColorEnhance;
+    float AlphaEnhance;
+  };
+
+  #if USE_FLOW
+    uniform flowProp {
+      float main_u_speed;
+      float main_v_speed;
+    };
+  #endif
+
+  #if USE_ROTATE
+    uniform rotateProp {
+      float rotate;
+    };
+  #endif
+
+  #if USE_DISTORT
+    uniform sampler2D distortTexture;
+    uniform distortProp {
+      vec4 distortTiling_Offset;
+      float distortStreagth;
+      float distort_u_speed;
+      float distort_v_speed;
+    };
+  #endif
+
+  #if USE_DISTORT_MASK
+    uniform sampler2D distortMaskTex;
+    uniform distortMaskProp {
+      vec4 distortMaskTiling_Offset;
+      float distortMask_u_speed;
+      float distortMask_v_speed;
+    };
+  #endif
+
+  #if USE_DISSOLVE
+    uniform sampler2D dissolveTex;
+    uniform dissolveProp {
+      vec4 dissolveTiling_Offset;
+      float dissolveThreshold;
+      float dissolve_u_speed;
+      float dissolve_v_speed;
+    };
+  #endif
+
+  #if USE_DISSOLVE_MASK
+    uniform sampler2D dissolveMaskTex;
+    uniform dissolveMaskProp {
+      vec4 dissolveMaskTiling_Offset;
+      float dissolveMask_u_speed;
+      float dissolveMask_v_speed;
+    };
+  #endif
+
+  #if USE_MASK
+    uniform sampler2D MaskTex;
+    uniform maskProp {
+      vec4 MaskTexTiling_Offset;
+      float MaskRotate;
+      float mask_u_speed;
+      float mask_v_speed;
+    };
+  #endif
+
+  vec4 add () {
+    vec2 finalUV = uv;
+
+    #if USE_ROTATE
+      vec2 center = vec2(0.5, 0.5);
+      vec2 rotUV = finalUV - center;
+      float angle = rotate * 3.14159 * 2.0 / 360.0;
+      rotUV = vec2(rotUV.x * cos(angle) - rotUV.y * sin(angle), rotUV.x * sin(angle) + rotUV.y * cos(angle));
+      rotUV += vec2(0.5, 0.5);
+      finalUV = rotUV;
+    #endif
+
+    #if USE_FLOW
+      finalUV += cc_time.x * vec2(main_u_speed, main_v_speed);
+    #endif
+
+    #if USE_DISTORT
+      vec2 distortUV = vec2(uv.x * distortTiling_Offset.x + distortTiling_Offset.z, uv.y * distortTiling_Offset.y + distortTiling_Offset.w);
+      vec4 distortTex = (texture(distortTexture, distortUV + cc_time.x * vec2(distort_u_speed, distort_v_speed)) - 0.5) * distortStreagth;
+      #if USE_DISTORT_MASK
+        vec2 distMaskUV = vec2(uv.x * distortMaskTiling_Offset.x + distortMaskTiling_Offset.z, uv.y * distortMaskTiling_Offset.y + distortMaskTiling_Offset.w);
+        distMaskUV += cc_time.x * vec2(distortMask_u_speed, distortMask_v_speed);
+        vec4 distMaskTex = texture(distortMaskTex, distMaskUV);
+        distortTex *= distMaskTex.g;
+      #endif
+      finalUV += distortTex.xy;
+    #endif
+
+    vec2 centerZoom = vec2(mainTextureTiling_Offset.z - mainTextureTiling_Offset.x * 0.5 + 0.5, mainTextureTiling_Offset.w - mainTextureTiling_Offset.y * 0.5 + 0.5);
+    vec2 texUV = vec2(finalUV.x * mainTextureTiling_Offset.x + centerZoom.x, finalUV.y * mainTextureTiling_Offset.y + centerZoom.y);
+
+    #if USE_CLAMP
+      texUV = clamp(texUV, vec2(0.0), vec2(1.0));
+    #endif
+    vec4 second = texture(secondTexture, uv);
+    vec4 col = mainColor * texture(mainTexture, texUV) * color;
+    col.rgb*=second.rgb;
+    col.rgb *= ColorEnhance;
+    col.a *= AlphaEnhance;
+
+    #if USE_DISSOLVE
+      vec2 dissUV = vec2(uv.x * dissolveTiling_Offset.x + dissolveTiling_Offset.z, uv.y * dissolveTiling_Offset.y + dissolveTiling_Offset.w);
+      dissUV += cc_time.x * vec2(dissolve_u_speed, dissolve_v_speed);
+      vec4 dissTex = texture(dissolveTex, dissUV);
+      float offsetedDissolve = dissolveThreshold - color.a;
+      float dissCol = smoothstep(0.4, 0.7, dissTex.g - offsetedDissolve);
+      #if USE_DISSOLVE_MASK
+        vec2 dissMaskUV = vec2(uv.x * dissolveMaskTiling_Offset.x + dissolveMaskTiling_Offset.z, uv.y * dissolveMaskTiling_Offset.y + dissolveMaskTiling_Offset.w);
+        dissMaskUV += cc_time.x * vec2(dissolveMask_u_speed, dissolveMask_v_speed);
+        vec4 dissMaskTex = texture(dissolveMaskTex, dissMaskUV);
+        dissCol = mix(1.0, dissCol, dissMaskTex.g);
+      #endif
+      col.a *= dissCol;
+    #endif
+
+    #if USE_MASK
+      {
+        vec2 maskRotUV = uv;
+        vec2 maskCenterRot = vec2(0.5, 0.5);
+        vec2 maskRotOffset = maskRotUV - maskCenterRot;
+        float maskAngle = MaskRotate * 3.14159 * 2.0 / 360.0;
+        maskRotOffset = vec2(maskRotOffset.x * cos(maskAngle) - maskRotOffset.y * sin(maskAngle), maskRotOffset.x * sin(maskAngle) + maskRotOffset.y * cos(maskAngle));
+        maskRotOffset += vec2(0.5, 0.5);
+
+        vec2 maskCenterZoom = vec2(MaskTexTiling_Offset.z - MaskTexTiling_Offset.x * 0.5 + 0.5, MaskTexTiling_Offset.w - MaskTexTiling_Offset.y * 0.5 + 0.5);
+        vec2 maskUV = vec2(maskRotOffset.x * MaskTexTiling_Offset.x + maskCenterZoom.x, maskRotOffset.y * MaskTexTiling_Offset.y + maskCenterZoom.y);
+        maskUV += cc_time.x * vec2(mask_u_speed, mask_v_speed);
+        vec4 maskCol = texture(MaskTex, maskUV);
+        col.a *= maskCol.g;
+      }
+    #endif
+
+    return CCFragOutput(col);
+  }
+}%
