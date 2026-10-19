@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>从零到一实战3D塔防微信小游戏 Day3</title>
+</head>
+<body style="margin:0;background:#ffffff;">
+<section style="max-width:677px;margin:0 auto;padding:12px 4px 48px;background:#ffffff;color:#3f3a34;font-size:16px;line-height:1.95;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;">
+
+  <section style="height:6px;background:#0f6e62;border-radius:3px;margin:0 0 22px;"></section>
+
+  <p style="margin:0 0 12px;line-height:1.4;">
+    <span style="display:inline-block;padding:3px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">DAY 3</span>
+    <span style="display:inline-block;margin-left:8px;font-size:13px;letter-spacing:2px;color:#8a8175;">从零到一 · 3D 塔防</span>
+  </p>
+  <p style="margin:0 0 12px;font-size:26px;line-height:1.4;font-weight:700;color:#1c1915;">从零到一实战3D塔防微信小游戏 Day3</p>
+  <section style="width:36px;height:3px;background:#e0b56a;border-radius:2px;margin:0 0 18px;"></section>
+  <p style="margin:0 0 28px;font-size:16px;line-height:1.95;color:#4a453e;">Day2 已完成竖屏战场、石头怪 30000 与基础索敌。怪物从战场四边进入，炮塔转向最近目标并发射激光。Day3 在此基础上补齐第二座炮塔、放置规则与战斗反馈。</p>
+
+  <p style="margin:0 0 14px;font-size:13px;line-height:1.4;letter-spacing:4px;font-weight:700;color:#0f6e62;">今日目标</p>
+
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">01</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">机枪炮塔 10001</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">完成第二座炮塔的导入与轴向校正。头部绕颈部 360° 旋转，开火时仅炮管后坐。</p>
+  </section>
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">02</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">炮塔放置</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">底部栏选择激光炮或机枪。地面保持正交方格，在 45° 等距视角下呈现菱形，底座对齐格子中心。</p>
+  </section>
+  <section style="margin:0 0 8px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">03</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">战斗反馈</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">受损后显示血条、受击喷血与伤害数字。放置成功时，全息预览退出，正式炮塔就位，并播放方形数字雨。</p>
+  </section>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">01</span>机枪炮塔</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">本节只新增 10001。激光炮 10000 的旋转轴与开火逻辑保持不变。</p>
+  </section>
+  <p style="margin:0 0 4px;font-size:16px;line-height:1.95;color:#3f3a34;">机枪分三步完成。</p>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">模型导入</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">资源在 3ds Max 中处理。初版模型前后方向相反，炮管轴线偏移，贴图清晰度不足。校正朝向后拉直炮口，并替换为清晰贴图。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">机枪 10001 正面。炮管位于面部开口内，头部坐在底座上。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">旋转与开火</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">头部支持 360° 偏航。Fire 动画不带动整座炮塔，只做炮管短距离后坐，随后复位。</p>
+  <p style="margin:0 0 4px;font-size:16px;line-height:1.95;color:#3f3a34;">机枪偏航轴位于颈部圆环，高度约 1.17 米。激光炮的对应高度为 1.51 米，两座炮塔不能共用同一旋转高度，否则机枪头部会脱离底座。开火片段中还保留了一段与颈部等高的位移，会使炮管落到颈部。最终将偏航轴固定在颈部圆环上，并在每帧将炮管归位到面部开口内。</p>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">弹道</p>
+  <p style="margin:0;font-size:16px;line-height:1.95;color:#3f3a34;">两座炮塔目前仍发射 Day1 的蓝色激光。10001 本阶段先确定外形与开火动作，专用弹种后续替换。</p>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">02</span>炮塔放置</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">格子尺寸以激光炮占地为 1×1。后续大型炮塔再扩展为多格，本日两座均为单格。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">选择与预览</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">屏幕底部为两张图标卡片，不含文字。选中激光炮或机枪后，在地面点选落点。地格与炮塔全息线框只在放置过程中显示。可放置为绿色，格子已被占用时为红色。确认后关闭地格与线框，保留正式模型。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">底部两张炮塔卡片，其中一张处于选中状态。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">等距视角</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">透视相机下，方格在画面中仍接近正方形，与塔防常见的菱形格不一致。相机改为正交投影，沿对角线俯视，俯角 45°。世界空间保持正方形，屏幕上呈现为 45° 菱形。炮塔底座对齐菱形中心。</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">曾尝试露出天空盒，地面与天空同时丢失，该方案已撤回。熔岩方向增加一层向上的暖色补光，使炮塔底盘与怪物腹部能够接收环境红色。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">等距战场。菱形格子居中，炮塔底座位于格子中央。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">放置表现</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">落点确认后，全息预览向上退出，正式炮塔由较小比例放大至原始尺寸。地面同时生成一根方形光柱，四个侧面保持透明，绿色数字雨自下而上运动。实心光柱遮挡过重，最终采用四面透明方案。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">放置瞬间。四面数字雨自下而上掠过炮塔。</p>
+  </section>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">03</span>战斗反馈</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">行进路线、波次与金币尚未进入本阶段。本日只处理受击与血量的可视反馈。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">血条</p>
+  <p style="margin:0 0 4px;font-size:16px;line-height:1.95;color:#3f3a34;">满血时不显示。受到伤害后出现，始终朝向摄像机，不随炮塔旋转。血量高于 50% 为绿色，50% 至 30% 为黄色，低于 30% 为红色，外侧保留血槽边框。填充从左侧向右缩短，避免整条血条被等比压扁。</p>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">受击与伤害数字</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">怪物受击时播放喷血粒子，素材来自飞刀项目。伤害数字沿用 XPHero 的飘字：上移、缩小并淡出。对怪物的伤害为柠檬黄色，对炮塔的伤害为红色。同一帧内命中同一单位的数字合并为一条。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">怪物受击。血条与伤害数字同时可见。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">怪物动画</p>
+  <p style="margin:0;font-size:16px;line-height:1.95;color:#3f3a34;">怪物数量增加后，骨骼动画开销上升。已在编辑器中准备顶点动画烘焙，计划将奔跑、攻击与死亡写入贴图，避免运行时计算骨骼。烘焙结果破坏了石头怪外形，场景中曾无法正确显示怪物。30000 因此继续使用原有骨骼动画，三段动作保持不变。烘焙工具予以保留，待后续怪物再切换。</p>
+
+  <section style="margin:32px 0 0;padding:18px 18px 16px;background:#14312c;border-radius:10px;">
+    <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:2px;font-weight:700;color:#e0b56a;">最终效果</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#d7ebe4;">配视频 · 从底部选择机枪或激光炮，在菱形格子上完成放置，数字雨自下而上，怪物进入射程后掉血。</p>
+  </section>
+
+  <section style="margin:16px 0 0;padding:16px 18px 12px;background:#f7f5f0;border-radius:10px;">
+    <p style="margin:0 0 6px;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8a8175;">本项目已经开源</p>
+    <p style="margin:0;font-size:15px;line-height:1.6;"><a href="https://github.com/sunweihang/TDGame" style="color:#0f6e62;font-weight:700;text-decoration:none;">https://github.com/sunweihang/TDGame</a></p>
+  </section>
+
+  <p style="margin:32px 0 10px;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">关于作者</p>
+  <section style="height:1px;background:#ece6dc;"></section>
+
+</section>
+</body>
+</html>
