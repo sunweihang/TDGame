@@ -1,0 +1,228 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2",
+  "files": [
+    "__original-animation-0.bin"
+  ],
+  "subMetas": {
+    "55230": {
+      "importer": "gltf-embeded-image",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@55230",
+      "displayName": "",
+      "id": "55230",
+      "name": "Bitmaptexture.image",
+      "userData": {
+        "gltfIndex": 0,
+        "fixAlphaTransparencyArtifacts": true,
+        "hasAlpha": true,
+        "type": "texture"
+      },
+      "ver": "1.0.3",
+      "imported": true,
+      "files": [
+        ".json",
+        ".png"
+      ],
+      "subMetas": {}
+    },
+    "7a522": {
+      "importer": "gltf-mesh",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@7a522",
+      "displayName": "",
+      "id": "7a522",
+      "name": "TurretBase.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 812
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "93d2c": {
+      "importer": "gltf-mesh",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@93d2c",
+      "displayName": "",
+      "id": "93d2c",
+      "name": "TurretHead.mesh",
+      "userData": {
+        "gltfIndex": 1,
+        "triangleCount": 1342
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "ed8b6": {
+      "importer": "gltf-mesh",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@ed8b6",
+      "displayName": "",
+      "id": "ed8b6",
+      "name": "Barrel.mesh",
+      "userData": {
+        "gltfIndex": 2,
+        "triangleCount": 102
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "73b7f": {
+      "importer": "gltf-animation",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@73b7f",
+      "displayName": "",
+      "id": "73b7f",
+      "name": "Fire.animation",
+      "userData": {
+        "gltfIndex": 0,
+        "wrapMode": 1,
+        "sample": 30,
+        "span": {
+          "from": 0,
+          "to": 0.20000000298023224
+        },
+        "events": []
+      },
+      "ver": "1.0.18",
+      "imported": true,
+      "files": [
+        ".bin"
+      ],
+      "subMetas": {}
+    },
+    "d4d2b": {
+      "importer": "texture",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@d4d2b",
+      "displayName": "",
+      "id": "d4d2b",
+      "name": "Bitmaptexture.texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@55230"
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "daca6": {
+      "importer": "gltf-material",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@daca6",
+      "displayName": "",
+      "id": "daca6",
+      "name": "mg1_base.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "4f446": {
+      "importer": "gltf-scene",
+      "uuid": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@4f446",
+      "displayName": "",
+      "id": "4f446",
+      "name": "10001.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [
+      {
+        "name": "Bitmaptexture",
+        "uri": "847d66c1-98d5-4371-aee7-ea2e4c4315c2@55230"
+      }
+    ],
+    "fbx": {
+      "smartMaterialEnabled": true,
+      "animationBakeRate": 30,
+      "preferLocalTimeSpan": true,
+      "unitConversion": "geometry-level"
+    },
+    "animationImportSettings": [
+      {
+        "name": "Take 001",
+        "duration": 0.20000000298023224,
+        "fps": 30,
+        "splits": [
+          {
+            "name": "Fire",
+            "from": 0,
+            "to": 0.20000000298023224,
+            "wrapMode": 1,
+            "previousId": "73b7f"
+          }
+        ]
+      }
+    ],
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@7a522",
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@93d2c",
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@ed8b6"
+      ],
+      "skeletons": [],
+      "textures": [
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@d4d2b"
+      ],
+      "materials": [
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@daca6"
+      ],
+      "scenes": [
+        "847d66c1-98d5-4371-aee7-ea2e4c4315c2@4f446"
+      ]
+    }
+  }
+}

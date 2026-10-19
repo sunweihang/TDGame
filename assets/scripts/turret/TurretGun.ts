@@ -41,7 +41,8 @@ const _rest = new Quat();
 const _axis = new Vec3();
 const _wAxis = new Vec3();
 const _side = new Vec3();
-const _spec = new Color(220, 226, 232, 255);
+const _spec = new Color(206, 188, 168, 255);
+const _dust = new Color(214, 210, 206, 255);
 
 function toneTurret(root: Node): void {
   const renderers = root.getComponentsInChildren(MeshRenderer);
@@ -53,9 +54,12 @@ function toneTurret(root: Node): void {
       if (!src) continue;
       const mat = new Material();
       mat.copy(src);
-      mat.setProperty('specularFactor', 0.15);
-      mat.setProperty('shininessExponent', 28);
+      mat.setProperty('mainColor', _dust);
+      mat.setProperty('specularFactor', 0.18);
+      mat.setProperty('shininessExponent', 62);
       mat.setProperty('specularColor', _spec);
+      mat.setProperty('roughness', 0.58);
+      mat.setProperty('metallic', 0.55);
       mr.setSharedMaterial(mat, s);
     }
   }
@@ -71,6 +75,16 @@ type Gun = {
   muzzle: Vec3;
   forward: Vec3;
   yawAxis: Vec3;
+  /** Head-local point that must stay on the base while the head yaws. */
+  neck: Vec3;
+  socket: boolean;
+  /** Yaw pivot at the neck. The head stays a child so the barrel clip can still recoil. */
+  pivot: Node | null;
+  pivotPos: Vec3;
+  pivotRest: Quat;
+  /** Barrel child. Its clip keeps a neck-height Z that drops the mesh out of the head. */
+  barrel: Node | null;
+  barrelZ: number;
   restRot: Quat;
   restPos: Vec3;
   rawPos: Vec3;
@@ -84,6 +98,61 @@ type Gun = {
   plate: TurretPlate | null;
   restWorld: Vec3 | null;
 };
+
+/** Bottom ring of the head mesh, in head-local space. Far off the yaw axis means the node origin is not the socket. */
+function measureSocket(head: Node, axis: Vec3, out: Vec3): boolean {
+  out.set(0, 0, 0);
+  const mesh = head.getComponent(MeshRenderer)?.mesh;
+  if (!mesh) return false;
+  let data: ArrayLike<number> | null = null;
+  try {
+    data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+  } catch {
+    data = null;
+  }
+  if (!data || data.length < 9) return false;
+  const ax = axis.x;
+  const ay = axis.y;
+  const az = axis.z;
+  let minP = Infinity;
+  const n = (data.length / 3) | 0;
+  for (let i = 0; i < n; i++) {
+    const p = data[i * 3] * ax + data[i * 3 + 1] * ay + data[i * 3 + 2] * az;
+    if (p < minP) minP = p;
+  }
+  let sx = 0;
+  let sy = 0;
+  let sz = 0;
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const x = data[i * 3];
+    const y = data[i * 3 + 1];
+    const z = data[i * 3 + 2];
+    const p = x * ax + y * ay + z * az;
+    if (p > minP + 0.08) continue;
+    sx += x;
+    sy += y;
+    sz += z;
+    count++;
+  }
+  if (count < 3) return false;
+  out.set(sx / count, sy / count, sz / count);
+  const along = out.x * ax + out.y * ay + out.z * az;
+  const ox = out.x - along * ax;
+  const oy = out.y - along * ay;
+  const oz = out.z - along * az;
+  return ox * ox + oy * oy + oz * oz > 1;
+}
+
+/** World rotation from local rotations, so a parent Rx(-90) still counts before the world matrix is refreshed. */
+function chainRotation(node: Node, out: Quat): void {
+  Quat.copy(out, node.rotation);
+  let cur = node.parent;
+  while (cur) {
+    Quat.multiply(out, cur.rotation, out);
+    cur = cur.parent;
+  }
+}
 
 function findNode(root: Node, name: string): Node | null {
   if (root.name.toLowerCase() === name) return root;
@@ -117,6 +186,29 @@ function collectPositions(node: Node, out: Vec3[]): void {
     }
   }
   for (let i = 0; i < node.children.length; i++) collectPositions(node.children[i], out);
+}
+
+/** Horizontal size of a turret. The longer side is one grid cell. */
+export function measureTurretXZ(root: Node): { spanX: number; spanZ: number; cx: number; cz: number } | null {
+  root.updateWorldTransform();
+  const points: Vec3[] = [];
+  collectPositions(root, points);
+  if (points.length < 3) return null;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  }
+  const spanX = maxX - minX;
+  const spanZ = maxZ - minZ;
+  if (spanX < 1e-4 || spanZ < 1e-4) return null;
+  return { spanX, spanZ, cx: (minX + maxX) * 0.5, cz: (minZ + maxZ) * 0.5 };
 }
 
 function tightestHorizontalCap(points: Vec3[]): Cap | null {
@@ -218,12 +310,29 @@ export class TurretGun extends Component {
     this._load();
   }
 
+  get turrets(): Node[] {
+    const out: Node[] = [];
+    const guns = this._guns;
+    for (let i = 0; i < guns.length; i++) {
+      const root = guns[i].root;
+      if (root?.isValid) out.push(root);
+    }
+    return out;
+  }
+
+  /** Arm a turret that was just dropped on the grid. */
+  adopt(root: Node): void {
+    const index = this._guns.length;
+    this._arm(root, false, index, index + 1);
+  }
+
   private _collect(scene: Node | null): Node[] {
     const found: Node[] = [];
     if (!scene) return found;
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
-      if (kids[i].name === '10000') found.push(kids[i]);
+      const name = kids[i].name;
+      if (name === '10000' || name === '10001') found.push(kids[i]);
     }
     return found;
   }
@@ -263,6 +372,13 @@ export class TurretGun extends Component {
       muzzle: new Vec3(),
       forward: new Vec3(0, 0, -1),
       yawAxis: new Vec3(0, 1, 0),
+      neck: new Vec3(),
+      socket: false,
+      pivot: null,
+      pivotPos: new Vec3(),
+      pivotRest: new Quat(),
+      barrel: null,
+      barrelZ: 0,
       restRot: new Quat(),
       restPos: new Vec3(),
       rawPos: new Vec3(),
@@ -369,6 +485,7 @@ export class TurretGun extends Component {
 
   private _bindMuzzle(gun: Gun): void {
     const head = gun.head ?? gun.root;
+    this._bindBarrel(gun);
     head.updateWorldTransform();
     gun.restRot.set(head.rotation);
     const points: Vec3[] = [];
@@ -384,10 +501,10 @@ export class TurretGun extends Component {
       gun.forward.set(0, 0, -1);
     }
     let bestDot = 0;
-    const worldRot = head.worldRotation;
+    chainRotation(head, _rest);
     const locals = [Vec3.UNIT_X, Vec3.UNIT_Y, Vec3.UNIT_Z];
     for (let i = 0; i < locals.length; i++) {
-      Vec3.transformQuat(_wAxis, locals[i], worldRot);
+      Vec3.transformQuat(_wAxis, locals[i], _rest);
       const d = Vec3.dot(_wAxis, Vec3.UP);
       if (Math.abs(d) > Math.abs(bestDot)) {
         bestDot = d;
@@ -395,6 +512,52 @@ export class TurretGun extends Component {
         if (d < 0) gun.yawAxis.multiplyScalar(-1);
       }
     }
+    gun.socket = measureSocket(head, gun.yawAxis, gun.neck);
+    if (gun.socket) this._seatPivot(gun);
+  }
+
+  /**
+   * The barrel mesh is already in head space, lined up with the face.
+   * The clip also stores the neck offset in local Z, which drops it by about a meter.
+   */
+  private _bindBarrel(gun: Gun): void {
+    const head = gun.head;
+    const barrel = head ? findNode(head, 'barrel') : null;
+    gun.barrel = barrel;
+    gun.barrelZ = 0;
+    if (!barrel) return;
+    const minZ = barrel.getComponent(MeshRenderer)?.mesh?.struct.minPosition.z ?? 0;
+    const nodeZ = barrel.position.z;
+    if (minZ > 0.8 && nodeZ < -0.4) gun.barrelZ = nodeZ;
+    this._liftBarrel(gun);
+  }
+
+  private _liftBarrel(gun: Gun): void {
+    const barrel = gun.barrel;
+    if (!barrel?.isValid || gun.barrelZ === 0) return;
+    const p = barrel.position;
+    barrel.setPosition(p.x, p.y, 0);
+  }
+
+  /** Move the yaw origin onto the neck ring. Head local space stays put, so the muzzle offset is unchanged. */
+  private _seatPivot(gun: Gun): void {
+    const head = gun.head;
+    const parent = head?.parent;
+    if (!head || !parent) return;
+    Vec3.transformQuat(_axis, gun.neck, head.rotation);
+    _axis.add(head.position);
+    const pivot = new Node('YawPivot');
+    pivot.layer = head.layer;
+    parent.addChild(pivot);
+    pivot.setRotation(head.rotation);
+    pivot.setPosition(_axis);
+    gun.pivot = pivot;
+    gun.pivotRest.set(pivot.rotation);
+    gun.pivotPos.set(pivot.position);
+    head.setParent(pivot, true);
+    gun.restPos.set(head.position);
+    gun.rawPos.set(head.position);
+    gun.restRot.set(head.rotation);
   }
 
   private _applyYaw(gun: Gun): void {
@@ -404,6 +567,19 @@ export class TurretGun extends Component {
     if (state?.isPlaying) gun.rawPos.set(head.position);
     else gun.rawPos.set(gun.restPos);
     const yaw = gun.aim;
+    const pivot = gun.pivot;
+    if (pivot?.isValid) {
+      // The clip keys the head back to the old origin. Put that pose back, then yaw the neck.
+      Quat.fromAxisAngle(_yawQ, gun.yawAxis, yaw);
+      Quat.multiply(_spin, gun.pivotRest, _yawQ);
+      pivot.setRotation(_spin);
+      pivot.setPosition(gun.pivotPos);
+      head.setRotation(gun.restRot);
+      head.setPosition(gun.restPos);
+      this._liftBarrel(gun);
+      return;
+    }
+    this._liftBarrel(gun);
     Quat.fromAxisAngle(_yawQ, gun.yawAxis, yaw);
     Quat.multiply(_spin, gun.restRot, _yawQ);
     head.setRotation(_spin);
