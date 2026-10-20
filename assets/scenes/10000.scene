@@ -2051,7 +2051,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2062,7 +2062,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2138,10 +2138,10 @@
       "__id__": 84
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 90
     },
@@ -2162,7 +2162,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2173,7 +2173,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2249,10 +2249,10 @@
       "__id__": 92
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 98
     },
@@ -2273,7 +2273,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2284,7 +2284,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2360,10 +2360,10 @@
       "__id__": 100
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 106
     },
@@ -2384,7 +2384,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2395,7 +2395,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2471,10 +2471,10 @@
       "__id__": 108
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 114
     },
@@ -2495,7 +2495,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2506,7 +2506,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2582,10 +2582,10 @@
       "__id__": 116
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 122
     },
@@ -2606,7 +2606,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2617,7 +2617,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2693,10 +2693,10 @@
       "__id__": 124
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 130
     },
@@ -2717,7 +2717,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2728,7 +2728,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2804,10 +2804,10 @@
       "__id__": 132
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 138
     },
@@ -2828,7 +2828,7 @@
   {
     "__type__": "cc.TargetInfo",
     "localID": [
-      "sL0tBaseRootFileId001"
+      "sFaceRootFileId0001"
     ]
   },
   {
@@ -2839,7 +2839,7 @@
     "propertyPath": [
       "_name"
     ],
-    "value": "slot"
+    "value": "slot-face"
   },
   {
     "__type__": "CCPropertyOverrideInfo",
@@ -2915,10 +2915,10 @@
       "__id__": 140
     },
     "asset": {
-      "__uuid__": "b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42",
+      "__uuid__": "a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34",
       "__expectedType__": "cc.Prefab"
     },
-    "fileId": "sL0tBaseRootFileId001",
+    "fileId": "sFaceRootFileId0001",
     "instance": {
       "__id__": 146
     },

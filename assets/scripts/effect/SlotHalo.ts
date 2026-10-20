@@ -26,6 +26,9 @@ const EFFECT = '7f78400d-94a6-45a3-a362-ca4eed3138e0';
 const GLOW_TEX = 'f3a81c20-7d44-4e91-b6c2-1a9e5d8c3b70@6c48a';
 const RING_TEX = '9c2e6b14-5a78-4f03-8d21-6b4a7e1c9d52@6c48a';
 const COLUMN_TEX = '2d8f4a61-1c35-4b90-a7e6-8c3b5d2f1a94@6c48a';
+const GLOW_BLUE = 'd9e63a12-4c7a-4f81-a035-7b1c4e9f6d83@6c48a';
+const RING_BLUE = 'b7c41e90-2a58-4d6f-8e13-5f9a2c7d4b61@6c48a';
+const COLUMN_BLUE = 'c8d52f01-3b69-4e70-9f24-6a0b3d8e5c72@6c48a';
 
 const SHAPE_CONE = 2;
 const EMIT_BASE = 0;
@@ -38,21 +41,27 @@ const BEAM_RADIUS = 2.55;
 
 let _flat: Mesh | null = null;
 let _sheet: Mesh | null = null;
-let _ringMat: Material | null = null;
-let _beamMat: Material | null = null;
-let _sparkMat: Material | null = null;
 let _loading = false;
 
 type Pending = {
   rings: MeshRenderer[];
   beams: MeshRenderer[];
   sparks: ParticleSystem;
+  blue: boolean;
+};
+
+type HaloSet = {
+  ring: Material;
+  beam: Material;
+  spark: Material;
 };
 
 const _pending: Pending[] = [];
+let _red: HaloSet | null = null;
+let _blue: HaloSet | null = null;
 
-/** Wide red halo: ground ring, upper ring, and a cylinder of light around the pad. */
-export function addSlotHalo(slot: Node): void {
+/** Same pad halo as the empty slots. Pass blue to recolor that set for an unlocked pad. */
+export function addSlotHalo(slot: Node, blue = false): void {
   if (!slot.isValid || slot.getChildByName('Halo')) return;
   const scale = slot.scale.x > 0.001 ? slot.scale.x : 1;
   const halo = new Node('Halo');
@@ -60,13 +69,15 @@ export function addSlotHalo(slot: Node): void {
   halo.active = false;
   slot.addChild(halo);
   halo.setScale(1 / scale, 1 / scale, 1 / scale);
-  halo.setPosition(0, 0.7 / scale, 0);
-  halo.addComponent(SlotHaloView);
+  halo.setPosition(0, (blue ? 1.05 : 0.7) / scale, 0);
+  const view = halo.addComponent(SlotHaloView);
+  view.blue = blue;
   halo.active = true;
 }
 
 @ccclass('SlotHaloView')
 class SlotHaloView extends Component {
+  blue = false;
   private _time = 0;
   private _base: Node | null = null;
   private _top: Node | null = null;
@@ -86,7 +97,7 @@ class SlotHaloView extends Component {
     const sparks = this._sparks();
     const baseMr = this._base.getComponent(MeshRenderer);
     const topMr = this._top.getComponent(MeshRenderer);
-    if (baseMr && topMr) bindTextures({ rings: [baseMr, topMr], beams, sparks });
+    if (baseMr && topMr) bindTextures({ rings: [baseMr, topMr], beams, sparks, blue: this.blue });
   }
 
   update(dt: number): void {
@@ -154,7 +165,9 @@ class SlotHaloView extends Component {
     ps.rateOverTime.constant = 42;
     ps.startLifetime.constant = 1.45;
     ps.startSpeed.constant = 2.5;
-    ps.startColor.color = new Color(255, 42, 28, 255);
+    const hot = this.blue ? new Color(28, 150, 255, 255) : new Color(255, 42, 28, 255);
+    const deep = this.blue ? new Color(8, 40, 180, 255) : new Color(180, 8, 8, 255);
+    ps.startColor.color = hot;
     ps.startSizeX.mode = CurveRange.Mode.TwoConstants;
     ps.startSizeX.constantMin = 0.65;
     ps.startSizeX.constantMax = 1.15;
@@ -164,7 +177,7 @@ class SlotHaloView extends Component {
       fade.enable = true;
       fade.color.mode = GradientRange.Mode.Gradient;
       fade.color.gradient.setKeys(
-        [keyColor(new Color(255, 80, 40, 255), 0), keyColor(new Color(180, 8, 8, 255), 1)],
+        [keyColor(hot, 0), keyColor(deep, 1)],
         [keyAlpha(0, 0), keyAlpha(220, 0.12), keyAlpha(80, 0.7), keyAlpha(0, 1)],
       );
     }
@@ -200,7 +213,7 @@ function keyAlpha(alpha: number, time: number): AlphaKey {
 }
 
 function bindTextures(item: Pending): void {
-  if (_ringMat && _beamMat && _sparkMat) {
+  if (item.blue ? _blue : _red) {
     applyTextures(item);
     return;
   }
@@ -211,20 +224,40 @@ function bindTextures(item: Pending): void {
     assetManager.loadAny({ uuid: COLUMN_TEX }, (columnErr, column) => {
       assetManager.loadAny({ uuid: GLOW_TEX }, (glowErr, glow) => {
         assetManager.loadAny({ uuid: EFFECT }, (effectErr, effect) => {
-          _loading = false;
-          const ringTex = asTexture(ring);
-          const columnTex = asTexture(column);
-          const glowTex = asTexture(glow);
-          const effectAsset = asEffect(effect);
-          if (ringErr || columnErr || glowErr || effectErr || !ringTex || !columnTex || !glowTex || !effectAsset) {
-            console.error('[SlotHalo] 光环贴图加载失败', ringErr || columnErr || glowErr || effectErr);
-            return;
-          }
-          _ringMat = unlit(ringTex, new Color(255, 255, 255, 255));
-          _beamMat = unlit(columnTex, new Color(255, 72, 48, 220));
-          _sparkMat = particleMat(effectAsset, glowTex);
-          const queued = _pending.splice(0);
-          for (let i = 0; i < queued.length; i++) applyTextures(queued[i]);
+          assetManager.loadAny({ uuid: RING_BLUE }, (blueRingErr, blueRingAsset) => {
+            assetManager.loadAny({ uuid: COLUMN_BLUE }, (blueColumnErr, blueColumnAsset) => {
+              assetManager.loadAny({ uuid: GLOW_BLUE }, (blueGlowErr, blueGlowAsset) => {
+                _loading = false;
+                const ringTex = asTexture(ring);
+                const columnTex = asTexture(column);
+                const glowTex = asTexture(glow);
+                const effectAsset = asEffect(effect);
+                if (ringErr || columnErr || glowErr || effectErr || !ringTex || !columnTex || !glowTex || !effectAsset) {
+                  console.error('[SlotHalo] 光环贴图加载失败', ringErr || columnErr || glowErr || effectErr);
+                  return;
+                }
+                _red = {
+                  ring: unlit(ringTex, new Color(255, 255, 255, 255)),
+                  beam: unlit(columnTex, new Color(255, 72, 48, 220)),
+                  spark: particleMat(effectAsset, glowTex, new Color(255, 36, 24, 255)),
+                };
+                const blueRing = asTexture(blueRingAsset);
+                const blueColumn = asTexture(blueColumnAsset);
+                const blueGlow = asTexture(blueGlowAsset);
+                if (blueRingErr || blueColumnErr || blueGlowErr || !blueRing || !blueColumn || !blueGlow) {
+                  console.error('[SlotHalo] 蓝色光环贴图加载失败', blueRingErr || blueColumnErr || blueGlowErr);
+                } else {
+                  _blue = {
+                    ring: unlit(blueRing, new Color(255, 255, 255, 255)),
+                    beam: unlit(blueColumn, new Color(48, 140, 255, 220)),
+                    spark: particleMat(effectAsset, blueGlow, new Color(36, 150, 255, 255)),
+                  };
+                }
+                const queued = _pending.splice(0);
+                for (let i = 0; i < queued.length; i++) applyTextures(queued[i]);
+              });
+            });
+          });
         });
       });
     });
@@ -232,13 +265,11 @@ function bindTextures(item: Pending): void {
 }
 
 function applyTextures(item: Pending): void {
-  if (_ringMat) {
-    for (let i = 0; i < item.rings.length; i++) item.rings[i].setSharedMaterial(_ringMat, 0);
-  }
-  if (_beamMat) {
-    for (let i = 0; i < item.beams.length; i++) item.beams[i].setSharedMaterial(_beamMat, 0);
-  }
-  if (_sparkMat) paintSystem(item.sparks, _sparkMat);
+  const set = item.blue ? _blue : _red;
+  if (!set) return;
+  for (let i = 0; i < item.rings.length; i++) item.rings[i].setSharedMaterial(set.ring, 0);
+  for (let i = 0; i < item.beams.length; i++) item.beams[i].setSharedMaterial(set.beam, 0);
+  paintSystem(item.sparks, set.spark);
 }
 
 function paintSystem(ps: ParticleSystem, mat: Material): void {
@@ -317,12 +348,12 @@ function whiteTex(): Texture2D {
   return tex;
 }
 
-function particleMat(effect: EffectAsset, tex: Texture2D): Material {
+function particleMat(effect: EffectAsset, tex: Texture2D, color: Color): Material {
   const mat = new Material();
   mat.initialize({ effectAsset: effect, technique: 0 });
   mat.setProperty('mainTexture', tex);
   mat.setProperty('secondTexture', whiteTex());
-  mat.setProperty('mainColor', new Color(255, 36, 24, 255));
+  mat.setProperty('mainColor', color);
   mat.setProperty('ColorEnhance', 1.4);
   mat.setProperty('AlphaEnhance', 1);
   return mat;

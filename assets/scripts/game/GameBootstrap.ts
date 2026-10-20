@@ -6,7 +6,6 @@ import {
   Component,
   DirectionalLight,
   instantiate,
-  MeshRenderer,
   Node,
   Prefab,
   Quat,
@@ -15,16 +14,16 @@ import {
 import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { addLightShaft } from '../effect/LightShaft.ts';
-import { addSlotHalo } from '../effect/SlotHalo.ts';
+import { addSlotFace, preloadSlotFaces } from '../effect/SlotFace.ts';
 import { TurretGun } from '../turret/TurretGun.ts';
 import { TurretPlacer } from '../turret/TurretPlacer.ts';
 import { MonsterField } from '../monster/MonsterField.ts';
 
 const { ccclass } = _decorator;
 
-const SLOT_PREFAB = 'b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42';
+const SLOT_FACE = 'a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34';
 
-/** Centers of the eight red plant marks, in world meters. */
+/** Centers of the eight plant marks, in world meters. First is highest on screen. */
 const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
   [29.435, 16.44],
   [10.752, 7.701],
@@ -36,37 +35,34 @@ const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
   [-31.968, -26.844],
 ];
 
-function paintSlotHalos(scene: Node): void {
+function isSlot(node: Node): boolean {
+  return node.isValid && (node.name === 'slot-face' || node.name === 'slot');
+}
+
+function paintSlots(scene: Node): void {
   for (const child of scene.children) {
-    if (child.isValid && child.name === 'slot') addSlotHalo(child);
+    if (isSlot(child)) addSlotFace(child, true);
   }
 }
 
+/** Draw the base picture on the scene prefabs. Place them if the scene has none. */
 function mountSlots(scene: Node): void {
-  const placed = scene.children.some((n) => n.isValid && n.name === 'slot' && n.getComponentInChildren(MeshRenderer));
-  if (placed) {
-    paintSlotHalos(scene);
+  if (scene.children.some(isSlot)) {
+    paintSlots(scene);
     return;
   }
-  assetManager.loadAny({ uuid: SLOT_PREFAB }, (err, asset) => {
+  assetManager.loadAny({ uuid: SLOT_FACE }, (err, asset) => {
     if (!scene.isValid || err || !(asset instanceof Prefab)) {
       console.error('[GameBootstrap] 塔座预制体加载失败', err);
       return;
     }
-    if (scene.children.some((n) => n.isValid && n.name === 'slot' && n.getComponentInChildren(MeshRenderer))) {
-      paintSlotHalos(scene);
-      return;
-    }
-    for (const child of scene.children) {
-      if (child.name === 'slot') child.destroy();
-    }
     for (const [x, z] of SLOT_SPOTS) {
       const node = instantiate(asset);
-      node.name = 'slot';
+      node.name = 'slot-face';
       node.setPosition(x, 0, z);
       scene.addChild(node);
     }
-    paintSlotHalos(scene);
+    paintSlots(scene);
   });
 }
 
@@ -78,6 +74,7 @@ export class GameBootstrap extends Component {
 
   onLoad(): void {
     this._splashReleased = false;
+    preloadSlotFaces();
     holdDomSplash();
     this.schedule(this._holdSplashTick, 0);
     this._releaseSplashAfterDraws(3);
