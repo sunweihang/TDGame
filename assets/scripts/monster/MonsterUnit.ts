@@ -6,7 +6,7 @@ import { TurretPlate } from '../turret/TurretPlate.ts';
 
 const { ccclass } = _decorator;
 
-const SPEED = 13.6;
+const SPEED = 6.8;
 const HIT_R = 1.86;
 const FOOT_Y = 0.02;
 const BODY_GAP = 3.46;
@@ -29,7 +29,7 @@ function pickClip(anim: SkeletalAnimation, key: string, fallback: number): Anima
 export class MonsterUnit extends Component {
   static all: MonsterUnit[] = [];
 
-  hp = 42;
+  hp = 4200;
   size = 1;
   bite = 8;
   private _anim: SkeletalAnimation | null = null;
@@ -72,7 +72,7 @@ export class MonsterUnit extends Component {
     this.hp -= amount;
     showDmgFont(this.node, amount, 'hit');
     const scene = this.node.scene;
-    if (scene) playBloodSpray(scene, this.aimPoint(_spray));
+    if (scene) playBloodSpray(scene, this.aimPoint(_spray), this.node);
     if (this.hp > 0) return;
     this._die();
   }
@@ -313,7 +313,7 @@ export class MonsterUnit extends Component {
   private _play(name: string, wrap: AnimationClip.WrapMode): void {
     const vat = this._vat;
     if (vat) {
-      if (name) vat.play(name, wrap === AnimationClip.WrapMode.Loop ? 2 : 1);
+      if (name) vat.play(name, 1);
       return;
     }
     const anim = this._anim;
@@ -326,7 +326,7 @@ export class MonsterUnit extends Component {
     }
     state.wrapMode = wrap;
     state.repeatCount = wrap === AnimationClip.WrapMode.Loop ? Infinity : 1;
-    state.speed = wrap === AnimationClip.WrapMode.Loop ? 2 : 1;
+    state.speed = 1;
     state.time = 0;
     anim.play(name);
   }

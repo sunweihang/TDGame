@@ -40,9 +40,9 @@ function profile(t: number): number {
 }
 
 function tint(t: number): [number, number, number, number] {
-  const r = 0.32 + (1 - t) * 0.28;
-  const g = 0.62 + (1 - t) * 0.22;
-  const b = 1;
+  const r = 1;
+  const g = 0.48 + (1 - t) * 0.38;
+  const b = 0.02 + (1 - t) * 0.08;
   const a = t < 0.18 ? 1 : Math.max(0, 1 - (t - 0.18) / 0.82);
   return [r, g, b, a];
 }
@@ -150,28 +150,28 @@ function unlit(technique: number, color: Color, texture: boolean): Material {
 }
 
 function coreMat(): Material {
-  if (!_coreMat) _coreMat = unlit(3, new Color(176, 214, 255, 255), false);
+  if (!_coreMat) _coreMat = unlit(3, new Color(255, 230, 80, 255), false);
   return _coreMat;
 }
 
 function haloMat(): Material {
-  if (!_haloMat) _haloMat = unlit(2, new Color(64, 156, 255, 255), false);
+  if (!_haloMat) _haloMat = unlit(2, new Color(255, 170, 0, 255), false);
   return _haloMat;
 }
 
 function tipMat(): Material {
-  if (!_tipMat) _tipMat = unlit(2, new Color(210, 236, 255, 255), true);
+  if (!_tipMat) _tipMat = unlit(2, new Color(255, 196, 32, 255), true);
   return _tipMat;
 }
 
 function flashMat(): Material {
-  if (!_flashMat) _flashMat = unlit(2, new Color(160, 210, 255, 255), true);
+  if (!_flashMat) _flashMat = unlit(2, new Color(255, 160, 16, 255), true);
   return _flashMat;
 }
 
 let _bloomMat: Material | null = null;
 function bloomMat(): Material {
-  if (!_bloomMat) _bloomMat = unlit(2, new Color(50, 140, 255, 170), true);
+  if (!_bloomMat) _bloomMat = unlit(2, new Color(255, 110, 0, 170), true);
   return _bloomMat;
 }
 
@@ -192,7 +192,6 @@ export class BlueLaserBolt extends Component {
   private _life = 0.55;
   private _age = 0;
   private _height = 1;
-  private _burst = false;
 
   launch(dir: Vec3, speed: number, life: number, height: number): void {
     this._dir.set(dir);
@@ -243,12 +242,6 @@ export class BlueLaserBolt extends Component {
       const reach = unit.hitRadius;
       if (dx * dx + dz * dz > reach * reach) continue;
       unit.damage(14);
-      const scene = this.node.scene;
-      if (scene) {
-        const flash = createLaserFlash(scene, p, this._height * 0.95, 0.18);
-        flash.setWorldPosition(p);
-      }
-      this._burst = true;
       this.node.destroy();
       return true;
     }
@@ -263,12 +256,6 @@ export class BlueLaserBolt extends Component {
     if (this._hitMonster()) return;
     this._age += dt;
     if (this._age < this._life) return;
-    const scene = this.node.scene;
-    if (!this._burst && scene) {
-      this._burst = true;
-      const flash = createLaserFlash(scene, this.node.worldPosition, this._height * 1.05, 0.2);
-      flash.setWorldPosition(this.node.worldPosition);
-    }
     this.node.destroy();
   }
 }

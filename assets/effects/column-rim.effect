@@ -1,0 +1,71 @@
+CCEffect %{
+  techniques:
+  - name: add
+    passes:
+    - vert: column-vs:vert
+      frag: column-fs:frag
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: true
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one
+          blendSrcAlpha: zero
+          blendDstAlpha: one
+      properties:
+        mainColor: { value: [0.55, 0.9, 1.0, 1.0], editor: { type: color } }
+}%
+
+CCProgram column-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  #include <builtin/uniforms/cc-local>
+
+  in vec3 a_position;
+  in vec3 a_normal;
+  in vec4 a_color;
+
+  out vec3 v_world;
+  out vec3 v_normal;
+  out float v_fade;
+
+  vec4 vert () {
+    vec4 local = vec4(a_position, 1.0);
+    vec4 world = cc_matWorld * local;
+    v_world = world.xyz;
+    v_normal = (cc_matWorldIT * vec4(a_normal, 0.0)).xyz;
+    v_fade = a_color.a;
+    return cc_matViewProj * world;
+  }
+}%
+
+CCProgram column-fs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+
+  in vec3 v_world;
+  in vec3 v_normal;
+  in float v_fade;
+
+  uniform Constant {
+    vec4 mainColor;
+  };
+
+  vec4 frag () {
+    vec3 n = normalize(v_normal);
+    vec3 view = normalize(cc_cameraPos.xyz - v_world);
+    float ndv = abs(dot(n, view));
+    float rim = pow(1.0 - ndv, 2.4);
+    float sweep = v_world.y * 14.0 - cc_time.x * 5.0;
+    float line = smoothstep(0.82, 0.98, 0.5 + 0.5 * sin(sweep));
+    float scanPhase = fract(v_world.y * 0.16 - cc_time.x * 0.28);
+    float scan = smoothstep(0.0, 0.015, scanPhase) * smoothstep(0.07, 0.02, scanPhase);
+    float alpha = (0.16 + rim * 0.9 + line * 0.18 + scan * 0.45) * v_fade * mainColor.a;
+    vec3 col = mainColor.rgb + vec3(0.25, 0.45, 0.55) * rim + vec3(0.45, 0.62, 0.7) * scan;
+    return vec4(col, alpha);
+  }
+}%

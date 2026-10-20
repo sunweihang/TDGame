@@ -1,23 +1,16 @@
 import {
   _decorator,
   Animation,
-  Button,
   Camera,
   Color,
   Component,
   EventMouse,
   EventTouch,
-  ImageAsset,
   Input,
   Material,
   MeshRenderer,
   Node,
   Prefab,
-  Sprite,
-  SpriteFrame,
-  Texture2D,
-  UITransform,
-  Vec2,
   Vec3,
   assetManager,
   geometry,
@@ -25,41 +18,27 @@ import {
   input,
   instantiate,
 } from 'cc';
+import { sealBaseAura, slotPad } from '../effect/BaseAura.ts';
 import { LaserPad } from '../effect/LaserPad.ts';
 import { spawnPlantBeam } from '../effect/PlantBeam.ts';
 import { paintTurretWire } from '../effect/TurretWire.ts';
 import { TURRET_10000_CELLS, BattleGrid, squareCellSize } from './BattleGrid.ts';
+import { stickHeld, stickSlid, stickTouch } from '../player/TankStick.ts';
+import { walkGmHeld } from '../player/TankWalkGM.ts';
 import { TurretGun, measureTurretXZ } from './TurretGun.ts';
 
 const { ccclass } = _decorator;
 
 const _rayHit = new Vec3();
 const _center = new Vec3();
-const _screen = new Vec2();
+const _axisX = new Vec3();
+const _axisY = new Vec3();
+const _axisZ = new Vec3();
+const _hit = new Vec3();
+const KINDS: Kind[] = ['10000', '10001', '10002', '10003'];
+const TAP_SLOP = 36;
 const _ghostOk = new Color(57, 255, 20, 255);
 const _ghostBad = new Color(255, 96, 88, 255);
-const _barIdle = new Color(186, 206, 220, 230);
-const _barOn = new Color(120, 196, 150, 242);
-const CARD_W = 186;
-const CARD_H = 186;
-const PLANT_CARD: Record<'10000' | '10001' | '10002' | '10003', { idle: string; armed: string }> = {
-  '10000': {
-    idle: '8fc7a8b0-18b3-4c4d-806e-fec69c41a23a',
-    armed: 'fb7f6c1a-d5bc-4507-ae79-b54d70914097',
-  },
-  '10001': {
-    idle: 'ac0ef9a7-afed-4583-b517-7ec3e3265d98',
-    armed: 'b67bd588-cd75-465a-9cf6-4887d0ec165e',
-  },
-  '10002': {
-    idle: '7c2a9e14-6d30-4b18-a5f2-10002c1d1e02',
-    armed: '7c2a9e14-6d30-4b18-a5f2-10002a4aed02',
-  },
-  '10003': {
-    idle: '8d3b0f25-7e41-4c29-b603-10003c1d1e03',
-    armed: '8d3b0f25-7e41-4c29-b603-10003a4aed03',
-  },
-};
 const PLACE_GRID = '53837b38-4869-4666-ab51-403a8428a2c4';
 const TURRET_10001 = 'd4e5f6a7-8b9c-4d0e-a1f2-10001bb10001';
 const TURRET_10002 = 'c3a91e20-6d4e-4b19-8a77-10002bb10002';
@@ -67,16 +46,11 @@ const TURRET_10003 = 'd4b02f31-7e5f-4c2a-9b88-10003bb10003';
 
 type Kind = '10000' | '10001' | '10002' | '10003';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
-type BarButton = {
-  node: Node;
-  sprite: Sprite;
-  idle: SpriteFrame | null;
-  armed: SpriteFrame | null;
-};
 
 /**
- * Square-grid placement. The bottom cards choose turret 10000, 10001, 10002, or 10003.
- * The laser cell and hologram exist only while a turret button is armed.
+ * A tap on an empty base builds a random turret there.
+ * The base column goes away, then the build hologram and digital rain play.
+ * Square-grid placement remains for an armed turret.
  */
 @ccclass('TurretPlacer')
 export class TurretPlacer extends Component {
@@ -86,7 +60,6 @@ export class TurretPlacer extends Component {
   private _ghostMat: Material | null = null;
   private _preview: LaserPad | null = null;
   private _cam: Camera | null = null;
-  private readonly _buttons = new Map<Kind, BarButton>();
   private readonly _packs = new Map<Kind, Pack>();
   private _kind: Kind | null = null;
   private _planting = false;
@@ -103,8 +76,15 @@ export class TurretPlacer extends Component {
   private _padHold = 0;
   private readonly _ray = new geometry.Ray();
   private readonly _reveals: Reveal[] = [];
+  private readonly _bases = new Set<Node>();
+  private _pressX = 0;
+  private _pressY = 0;
+  private _pressed = false;
+  private _dragged = false;
+  private _ignoreUntil = 0;
 
   onLoad(): void {
+    input.on(Input.EventType.MOUSE_DOWN, this._onMouseDown, this);
     input.on(Input.EventType.MOUSE_MOVE, this._onMouseMove, this);
     input.on(Input.EventType.MOUSE_UP, this._onMouseUp, this);
     input.on(Input.EventType.TOUCH_START, this._onTouch, this);
@@ -113,7 +93,7 @@ export class TurretPlacer extends Component {
   }
 
   onDestroy(): void {
-    this._buttons.forEach((bar) => bar.node.off(Button.EventType.CLICK));
+    input.off(Input.EventType.MOUSE_DOWN, this._onMouseDown, this);
     input.off(Input.EventType.MOUSE_MOVE, this._onMouseMove, this);
     input.off(Input.EventType.MOUSE_UP, this._onMouseUp, this);
     input.off(Input.EventType.TOUCH_START, this._onTouch, this);
@@ -122,7 +102,6 @@ export class TurretPlacer extends Component {
   }
 
   start(): void {
-    this._buildBar();
     this._boot();
   }
 
@@ -283,17 +262,11 @@ export class TurretPlacer extends Component {
     });
   }
 
-  private _makeGhost(): void {
-    const template = this._pack()?.template ?? null;
+  private _freshGhost(template: Node): { node: Node; mat: Material } | null {
     const scene = this.node.scene;
-    if (this._ghost?.isValid) {
-      this._ghost.destroy();
-      this._ghost = null;
-    }
-    if (!template?.isValid || !scene) return;
+    if (!template.isValid || !scene) return null;
     const ghost = instantiate(template);
     ghost.name = 'PlaceGhost';
-    ghost.active = false;
     scene.addChild(ghost);
     this._silence(ghost);
     const mat = new Material();
@@ -307,10 +280,22 @@ export class TurretPlacer extends Component {
       },
     });
     mat.setProperty('mainColor', _ghostOk);
-    this._ghostMat = mat;
     paintTurretWire(ghost, mat);
     ghost.active = false;
-    this._ghost = ghost;
+    return { node: ghost, mat };
+  }
+
+  private _makeGhost(): void {
+    const template = this._pack()?.template ?? null;
+    if (this._ghost?.isValid) this._ghost.destroy();
+    this._ghost = null;
+    this._ghostMat?.destroy();
+    this._ghostMat = null;
+    if (!template?.isValid) return;
+    const wired = this._freshGhost(template);
+    if (!wired) return;
+    this._ghost = wired.node;
+    this._ghostMat = wired.mat;
   }
 
   private _silence(root: Node): void {
@@ -330,33 +315,157 @@ export class TurretPlacer extends Component {
     }
   }
 
+  private _onMouseDown = (event: EventMouse): void => {
+    if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
+    const p = event.getLocation();
+    this._notePress(p.x, p.y);
+  };
+
   private _onMouseMove = (event: EventMouse): void => {
+    if (stickHeld() || walkGmHeld()) return;
     const p = event.getLocation();
     this._aim(p.x, p.y);
   };
 
   private _onMouseUp = (event: EventMouse): void => {
     if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
+    if (walkGmHeld()) return;
     const p = event.getLocation();
-    if (this._overBar(p.x, p.y)) return;
+    if (this._tapSlot(p.x, p.y)) return;
+    if (stickHeld()) return;
     this._aim(p.x, p.y);
     this._drop();
   };
 
   private _onTouch = (event: EventTouch): void => {
     const p = event.getLocation();
+    if (event.type === Input.EventType.TOUCH_START) this._notePress(p.x, p.y);
+    if (walkGmHeld()) return;
+    const touch = event.touch;
+    if (touch && stickTouch(touch.getID())) return;
     this._aim(p.x, p.y);
   };
 
   private _onTouchEnd = (event: EventTouch): void => {
+    if (walkGmHeld()) return;
     const p = event.getLocation();
-    if (this._overBar(p.x, p.y)) return;
+    if (this._tapSlot(p.x, p.y)) return;
+    const touch = event.touch;
+    if (touch && stickTouch(touch.getID())) return;
     this._aim(p.x, p.y);
     this._drop();
   };
 
+  private _notePress(x: number, y: number): void {
+    this._pressX = x;
+    this._pressY = y;
+    this._pressed = true;
+    this._dragged = false;
+  }
+
+  /** A short tap on an empty base. Sliding the stick keeps driving and does not build. */
+  private _tapSlot(x: number, y: number): boolean {
+    if (Date.now() < this._ignoreUntil) return true;
+    if (this._pressed) {
+      const moved = Math.hypot(x - this._pressX, y - this._pressY) > TAP_SLOP;
+      this._pressed = false;
+      if (moved) this._dragged = true;
+    }
+    if (this._dragged || stickSlid()) return false;
+    if (!this._grid) this._boot();
+    const hit = this._pickBase(x, y);
+    if (!hit) return false;
+    this._ignoreUntil = Date.now() + 200;
+    this._plantAt(hit.node, hit.x, hit.z);
+    return true;
+  }
+
+  private _pickBase(x: number, y: number): { node: Node; x: number; z: number } | null {
+    const cam = this._cam;
+    const scene = this.node.scene;
+    if (!cam || !scene) return null;
+    const ray = cam.screenPointToRay(x, y, this._ray);
+    let best: Node | null = null;
+    let bestT = Infinity;
+    let bx = 0;
+    let bz = 0;
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const node = kids[i];
+      if (!node.isValid || this._bases.has(node)) continue;
+      if (node.name !== 'slot-face' && node.name !== 'slot') continue;
+      const pad = slotPad(node);
+      if (!pad) continue;
+      const face = node.getChildByName('Face');
+      let t = Infinity;
+      const tFace = face?.active ? rayFace(ray, face) : -1;
+      const tDisc = rayDisc(ray, pad.x, pad.z, pad.radius * 1.45);
+      const tCol = rayColumn(ray, pad.x, pad.z, pad.column * 1.2, pad.top);
+      if (tFace >= 0 && tFace < t) t = tFace;
+      if (tDisc >= 0 && tDisc < t) t = tDisc;
+      if (tCol >= 0 && tCol < t) t = tCol;
+      if (t >= bestT) continue;
+      bestT = t;
+      best = node;
+      bx = pad.x;
+      bz = pad.z;
+    }
+    if (!best) return null;
+    return { node: best, x: bx, z: bz };
+  }
+
+  private _rollKind(): Kind | null {
+    const ready: Kind[] = [];
+    for (let i = 0; i < KINDS.length; i++) {
+      if (this._packs.has(KINDS[i])) ready.push(KINDS[i]);
+    }
+    if (!ready.length) return null;
+    return ready[Math.floor(Math.random() * ready.length)];
+  }
+
+  /** Drop a random turret on this pad, clear its column, and play the build effect. */
+  private _plantAt(slot: Node, x: number, z: number): void {
+    if (this._bases.has(slot)) return;
+    const kind = this._rollKind();
+    const pack = kind ? this._packs.get(kind) ?? null : null;
+    const gun = this._gun;
+    const grid = this._grid;
+    const scene = this.node.scene;
+    if (!kind || !pack?.template.isValid || !gun || !scene) return;
+    const now = Date.now();
+    if (now - this._lastDrop < 80) return;
+    this._bases.add(slot);
+    sealBaseAura(slot);
+    const halo = slot.getChildByName('Halo');
+    if (halo?.isValid) halo.destroy();
+    const root = instantiate(pack.template);
+    root.name = kind;
+    root.active = true;
+    scene.addChild(root);
+    const px = x + pack.offX;
+    const pz = z + pack.offZ;
+    root.setWorldPosition(px, pack.footY, pz);
+    if (grid) {
+      const n = TURRET_10000_CELLS.n;
+      const m = TURRET_10000_CELLS.m;
+      const spot = grid.snap(x, z, n, m);
+      if (spot && grid.free(spot.ix, spot.iz, n, m)) grid.take(spot.ix, spot.iz, n, m);
+    }
+    gun.adopt(root);
+    drawAboveBase(root);
+    const wired = this._freshGhost(pack.template);
+    if (wired) {
+      wired.node.active = true;
+      wired.node.setWorldPosition(px, pack.footY, pz);
+    }
+    this._reveal(root, wired?.node ?? null, wired?.mat ?? null);
+    const cell = Math.max(grid?.cellX ?? 0, grid?.cellZ ?? 0, 4.2);
+    spawnPlantBeam(scene, x, z, cell, cell);
+    this._lastDrop = now;
+  }
+
   private _aim(x: number, y: number): void {
-    if (!this._planting || this._overBar(x, y)) {
+    if (!this._planting) {
       this._hideCursor();
       return;
     }
@@ -446,17 +555,7 @@ export class TurretPlacer extends Component {
     root.setWorldPosition(_center.x + pack.offX, pack.footY, _center.z + pack.offZ);
     grid.take(this._ix, this._iz, n, m);
     gun.adopt(root);
-    this._reveal(root);
-    spawnPlantBeam(scene, _center.x, _center.z, grid.cellX, grid.cellZ);
-    this._padHold = 1.15;
-    this._lastDrop = now;
-    this._planting = false;
-    this._paintBar();
-    this._hideCursor();
-  }
-
-  /** The hologram lifts away and the real turret grows into its place. */
-  private _reveal(turret: Node): void {
+    drawAboveBase(root);
     const ghost = this._ghost;
     const shared = this._ghostMat;
     this._ghost = null;
@@ -470,6 +569,16 @@ export class TurretPlacer extends Component {
         if (draws[i].getSharedMaterial(0) === shared) draws[i].setSharedMaterial(mat, 0);
       }
     }
+    this._reveal(root, ghost?.isValid ? ghost : null, mat);
+    spawnPlantBeam(scene, _center.x, _center.z, grid.cellX, grid.cellZ);
+    this._padHold = 1.15;
+    this._lastDrop = now;
+    this._planting = false;
+    this._hideCursor();
+  }
+
+  /** The hologram lifts away and the real turret grows into its place. */
+  private _reveal(turret: Node, ghost: Node | null, mat: Material | null): void {
     const reveal: Reveal = {
       age: 0,
       ghost: ghost?.isValid ? ghost : null,
@@ -517,110 +626,109 @@ export class TurretPlacer extends Component {
     }
   }
 
-  private _buildBar(): void {
-    if (this._buttons.size) return;
-    const canvas = this.node.scene?.getChildByName('Canvas');
-    const canvasUi = canvas?.getComponent(UITransform);
-    if (!canvas || !canvasUi) return;
-    const height = canvasUi.contentSize.height;
-    const y = -height * 0.5 + 12 + CARD_H * 0.5;
-    const gap = 18;
-    const kinds: Kind[] = ['10000', '10001', '10002', '10003'];
-    for (let i = 0; i < kinds.length; i++) {
-      const kind = kinds[i];
-      const btn = new Node(kind === '10000' ? 'PlantLaser' : kind === '10001' ? 'PlantGun' : kind === '10002' ? 'PlantGun2' : 'PlantGun3');
-      btn.layer = canvas.layer;
-      canvas.addChild(btn);
-      const ui = btn.addComponent(UITransform);
-      ui.setContentSize(CARD_W, CARD_H);
-      const x = (i - (kinds.length - 1) / 2) * (CARD_W + gap);
-      btn.setPosition(x, y, 0);
-      const sprite = btn.addComponent(Sprite);
-      sprite.sizeMode = Sprite.SizeMode.CUSTOM;
-      sprite.type = Sprite.Type.SIMPLE;
-      sprite.trim = false;
-      sprite.spriteFrame = whiteFrame();
-      sprite.color = _barIdle;
-      ui.setContentSize(CARD_W, CARD_H);
-      const button = btn.addComponent(Button);
-      button.transition = Button.Transition.NONE;
-      btn.on(Button.EventType.CLICK, () => this._choose(kind), this);
-      this._buttons.set(kind, { node: btn, sprite, idle: null, armed: null });
-      if (PLANT_CARD[kind].idle) this._loadCard(kind, 'idle', PLANT_CARD[kind].idle);
-      if (PLANT_CARD[kind].armed) this._loadCard(kind, 'armed', PLANT_CARD[kind].armed);
-    }
-    this._paintBar();
-  }
-
-  private _loadCard(kind: Kind, which: 'idle' | 'armed', uuid: string): void {
-    assetManager.loadAny({ uuid }, (err, asset) => {
-      if (!this.isValid) return;
-      const frame = asSprite(asset);
-      if (err || !frame) {
-        console.error('[TurretPlacer] plant card failed', kind, which, err);
-        return;
-      }
-      frame.packable = false;
-      const bar = this._buttons.get(kind);
-      if (!bar) return;
-      bar[which] = frame;
-      this._paintBar();
-    });
-  }
-
-  private _choose(kind: Kind): void {
-    this._suppressDrop = Date.now() + 280;
-    if (this._planting && this._kind === kind) {
-      this._planting = false;
-      this._kind = null;
-      this._paintBar();
-      this._hideCursor();
-      return;
-    }
-    this._kind = kind;
-    this._planting = true;
-    this._paintBar();
-    if (this._packs.has(kind)) this._makeGhost();
-    else if (kind === '10001') {
-      const scene = this.node.scene;
-      if (scene) this._load10001(scene);
-    } else if (kind === '10002') {
-      const scene = this.node.scene;
-      if (scene) this._load10002(scene);
-    } else if (kind === '10003') {
-      const scene = this.node.scene;
-      if (scene) this._load10003(scene);
-    }
-    this._hideCursor();
-  }
-
-  private _paintBar(): void {
-    this._buttons.forEach((bar, kind) => {
-      const on = this._planting && this._kind === kind;
-      const art = on ? bar.armed ?? bar.idle : bar.idle;
-      if (art) {
-        bar.sprite.spriteFrame = art;
-        bar.sprite.color = Color.WHITE;
-      } else {
-        bar.sprite.spriteFrame = whiteFrame();
-        bar.sprite.color = on ? _barOn : _barIdle;
-      }
-    });
-  }
-
-  private _overBar(x: number, y: number): boolean {
-    _screen.set(x, y);
-    let hit = false;
-    this._buttons.forEach((bar) => {
-      const ui = bar.node.getComponent(UITransform);
-      if (ui?.hitTest(_screen)) hit = true;
-    });
-    return hit;
-  }
 }
 
 const REVEAL = 0.5;
 const LIFT = 3.1;
+/** Pad card is priority 12. The turret draws next, still under the build hologram. */
+const ABOVE_BASE = 14;
+
+/** The pad is transparent, so an opaque turret always paints first and ends up underneath. */
+function drawAboveBase(root: Node): void {
+  const draws = root.getComponentsInChildren(MeshRenderer);
+  for (let i = 0; i < draws.length; i++) {
+    const mr = draws[i];
+    mr.priority = ABOVE_BASE;
+    const slots = mr.sharedMaterials.length;
+    for (let s = 0; s < slots; s++) {
+      const mat = mr.getMaterialInstance(s);
+      mat?.overridePipelineStates({
+        blendState: {
+          targets: [{
+            blend: true,
+            blendSrc: gfx.BlendFactor.ONE,
+            blendDst: gfx.BlendFactor.ZERO,
+            blendSrcAlpha: gfx.BlendFactor.ONE,
+            blendDstAlpha: gfx.BlendFactor.ZERO,
+          }],
+        },
+        depthStencilState: {
+          depthTest: true,
+          depthWrite: true,
+        },
+      });
+    }
+  }
+}
+
+function rayFace(ray: geometry.Ray, face: Node): number {
+  face.updateWorldTransform();
+  const pos = face.worldPosition;
+  const rot = face.worldRotation;
+  Vec3.transformQuat(_axisX, Vec3.UNIT_X, rot);
+  Vec3.transformQuat(_axisY, Vec3.UNIT_Y, rot);
+  Vec3.transformQuat(_axisZ, Vec3.UNIT_Z, rot);
+  const denom = ray.d.x * _axisZ.x + ray.d.y * _axisZ.y + ray.d.z * _axisZ.z;
+  if (Math.abs(denom) < 1e-6) return -1;
+  const t = ((pos.x - ray.o.x) * _axisZ.x + (pos.y - ray.o.y) * _axisZ.y + (pos.z - ray.o.z) * _axisZ.z) / denom;
+  if (t < 0) return -1;
+  _hit.set(ray.o.x + ray.d.x * t - pos.x, ray.o.y + ray.d.y * t - pos.y, ray.o.z + ray.d.z * t - pos.z);
+  const u = _hit.x * _axisX.x + _hit.y * _axisX.y + _hit.z * _axisX.z;
+  const v = _hit.x * _axisY.x + _hit.y * _axisY.y + _hit.z * _axisY.z;
+  const hw = Math.abs(face.worldScale.x) * 0.5;
+  const hh = Math.abs(face.worldScale.y) * 0.5;
+  if (Math.abs(u) <= hw && Math.abs(v) <= hh) return t;
+  return -1;
+}
+
+function rayDisc(ray: geometry.Ray, x: number, z: number, radius: number): number {
+  if (Math.abs(ray.d.y) < 1e-6) return -1;
+  const t = -ray.o.y / ray.d.y;
+  if (t < 0) return -1;
+  const dx = ray.o.x + ray.d.x * t - x;
+  const dz = ray.o.z + ray.d.z * t - z;
+  if (dx * dx + dz * dz <= radius * radius) return t;
+  return -1;
+}
+
+function rayColumn(ray: geometry.Ray, x: number, z: number, radius: number, top: number): number {
+  let best = -1;
+  const cap = rayDisc(ray, x, z, radius);
+  if (cap >= 0) {
+    const y = ray.o.y + ray.d.y * cap;
+    if (y >= 0 && y <= top) best = cap;
+  }
+  if (Math.abs(ray.d.y) > 1e-6) {
+    const t = (top - ray.o.y) / ray.d.y;
+    if (t >= 0) {
+      const dx = ray.o.x + ray.d.x * t - x;
+      const dz = ray.o.z + ray.d.z * t - z;
+      if (dx * dx + dz * dz <= radius * radius && (best < 0 || t < best)) best = t;
+    }
+  }
+  const ox = ray.o.x - x;
+  const oz = ray.o.z - z;
+  const dx = ray.d.x;
+  const dz = ray.d.z;
+  const a = dx * dx + dz * dz;
+  if (a < 1e-8) return best;
+  const b = 2 * (ox * dx + oz * dz);
+  const c = ox * ox + oz * oz - radius * radius;
+  const disc = b * b - 4 * a * c;
+  if (disc < 0) return best;
+  const s = Math.sqrt(disc);
+  const near = (-b - s) / (2 * a);
+  const far = (-b + s) / (2 * a);
+  if (columnHit(ray, near, top) && (best < 0 || near < best)) best = near;
+  if (columnHit(ray, far, top) && (best < 0 || far < best)) best = far;
+  return best;
+}
+
+function columnHit(ray: geometry.Ray, t: number, top: number): boolean {
+  if (t < 0) return false;
+  const y = ray.o.y + ray.d.y * t;
+  return y >= 0 && y <= top;
+}
 
 type Reveal = {
   age: number;
@@ -634,27 +742,3 @@ type Reveal = {
   color: Color;
 };
 
-let _white: SpriteFrame | null = null;
-
-function asSprite(asset: unknown): SpriteFrame | null {
-  if (asset instanceof SpriteFrame) return asset;
-  if (!(asset instanceof ImageAsset)) return null;
-  const tex = new Texture2D();
-  tex.image = asset;
-  const frame = new SpriteFrame();
-  frame.packable = false;
-  frame.texture = tex;
-  return frame;
-}
-
-function whiteFrame(): SpriteFrame {
-  if (_white) return _white;
-  const tex = new Texture2D();
-  tex.reset({ width: 2, height: 2, format: Texture2D.PixelFormat.RGBA8888 });
-  tex.uploadData(new Uint8Array(16).fill(255));
-  const frame = new SpriteFrame();
-  frame.packable = false;
-  frame.texture = tex;
-  _white = frame;
-  return frame;
-}

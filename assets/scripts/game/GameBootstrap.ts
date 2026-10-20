@@ -5,16 +5,21 @@ import {
   Color,
   Component,
   DirectionalLight,
+  gfx,
   instantiate,
+  Material,
+  MeshRenderer,
   Node,
   Prefab,
   Quat,
+  Texture2D,
   Vec3,
 } from 'cc';
 import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
-import { addLightShaft } from '../effect/LightShaft.ts';
-import { addSlotFace, preloadSlotFaces } from '../effect/SlotFace.ts';
+import { addBaseAura } from '../effect/BaseAura.ts';
+import { PlayerTank } from '../player/PlayerTank.ts';
+import { TankWalkGM } from '../player/TankWalkGM.ts';
 import { TurretGun } from '../turret/TurretGun.ts';
 import { TurretPlacer } from '../turret/TurretPlacer.ts';
 import { MonsterField } from '../monster/MonsterField.ts';
@@ -22,6 +27,8 @@ import { MonsterField } from '../monster/MonsterField.ts';
 const { ccclass } = _decorator;
 
 const SLOT_FACE = 'a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34';
+const LIGHT_SHAFT = 'd9f3a6c2-1e47-4b85-a0d3-8c5e2f1b6a33';
+const SHAFT_TEX = 'c1d4e8a0-7b32-4f91-9c55-6e2a1b0d4f10@6c48a';
 
 /** Centers of the eight plant marks, in world meters. First is highest on screen. */
 const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
@@ -39,16 +46,72 @@ function isSlot(node: Node): boolean {
   return node.isValid && (node.name === 'slot-face' || node.name === 'slot');
 }
 
-function paintSlots(scene: Node): void {
-  for (const child of scene.children) {
-    if (isSlot(child)) addSlotFace(child, true);
-  }
+/** Same unlit setup the laser tips use. The prefab keeps the mesh; this only binds the material. */
+function asTexture(asset: unknown): Texture2D | null {
+  if (asset instanceof Texture2D) return asset;
+  if (!asset || typeof asset !== 'object') return null;
+  const tex = asset as Texture2D;
+  return typeof tex.width === 'number' ? tex : null;
 }
 
-/** Draw the base picture on the scene prefabs. Place them if the scene has none. */
+function paintShaft(root: Node): void {
+  assetManager.loadAny({ uuid: SHAFT_TEX }, (err, asset) => {
+    const tex = asTexture(asset);
+    if (!root.isValid || err || !tex) {
+      console.error('[GameBootstrap] 体积光贴图加载失败', err);
+      return;
+    }
+    const mat = new Material();
+    mat.initialize({
+      effectName: 'builtin-unlit',
+      technique: 2,
+      defines: { USE_TEXTURE: true },
+      states: {
+        rasterizerState: { cullMode: gfx.CullMode.NONE },
+        depthStencilState: { depthTest: true, depthWrite: false },
+      },
+    });
+    mat.setProperty('mainTexture', tex);
+    mat.setProperty('mainColor', new Color(186, 214, 255, 255));
+    const renderers = root.getComponentsInChildren(MeshRenderer);
+    for (let i = 0; i < renderers.length; i++) {
+      renderers[i].setSharedMaterial(mat, 0);
+      renderers[i].shadowCastingMode = MeshRenderer.ShadowCastingMode.OFF;
+      renderers[i].shadowReceivingMode = MeshRenderer.ShadowReceivingMode.OFF;
+    }
+  });
+}
+
+/** The shafts are a prefab. Place that prefab when the open scene does not already have it. */
+function mountLight(scene: Node): void {
+  const existing = scene.getChildByName('light-shaft');
+  if (existing?.isValid && existing.getComponentsInChildren(MeshRenderer).length) {
+    paintShaft(existing);
+    return;
+  }
+  existing?.destroy();
+  assetManager.loadAny({ uuid: LIGHT_SHAFT }, (err, asset) => {
+    if (!scene.isValid || err || !(asset instanceof Prefab)) {
+      console.error('[GameBootstrap] 体积光预制体加载失败', err);
+      return;
+    }
+    const again = scene.getChildByName('light-shaft');
+    if (again?.isValid && again.getComponentsInChildren(MeshRenderer).length) {
+      paintShaft(again);
+      return;
+    }
+    const node = instantiate(asset);
+    node.name = 'light-shaft';
+    scene.addChild(node);
+    paintShaft(node);
+  });
+}
+
+/** The eight bases are slot-face prefabs in the scene. Place them only if missing. */
 function mountSlots(scene: Node): void {
-  if (scene.children.some(isSlot)) {
-    paintSlots(scene);
+  const slots = scene.children.filter(isSlot);
+  if (slots.length) {
+    for (const slot of slots) addBaseAura(slot);
     return;
   }
   assetManager.loadAny({ uuid: SLOT_FACE }, (err, asset) => {
@@ -61,8 +124,8 @@ function mountSlots(scene: Node): void {
       node.name = 'slot-face';
       node.setPosition(x, 0, z);
       scene.addChild(node);
+      addBaseAura(node);
     }
-    paintSlots(scene);
   });
 }
 
@@ -74,7 +137,6 @@ export class GameBootstrap extends Component {
 
   onLoad(): void {
     this._splashReleased = false;
-    preloadSlotFaces();
     holdDomSplash();
     this.schedule(this._holdSplashTick, 0);
     this._releaseSplashAfterDraws(3);
@@ -83,11 +145,13 @@ export class GameBootstrap extends Component {
       if (!this.getComponent(TurretGun)) this.addComponent(TurretGun);
       if (!this.getComponent(TurretPlacer)) this.addComponent(TurretPlacer);
       if (!this.getComponent(MonsterField)) this.addComponent(MonsterField);
+      if (!this.getComponent(PlayerTank)) this.addComponent(PlayerTank);
+      if (!this.getComponent(TankWalkGM)) this.addComponent(TankWalkGM);
       this._lavaFill();
       const scene = this.node.scene;
       if (scene) {
-        addLightShaft(scene);
         mountSlots(scene);
+        mountLight(scene);
       }
       const canvas = scene?.getChildByName('Canvas');
       if (canvas) mountDmgFont(canvas);

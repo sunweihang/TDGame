@@ -1,0 +1,134 @@
+{
+  "ver": "1.0.27",
+  "importer": "image",
+  "imported": true,
+  "uuid": "f28b6065-153e-4994-8ad1-fb580369026a",
+  "files": [
+    ".json",
+    ".png"
+  ],
+  "subMetas": {
+    "6c48a": {
+      "importer": "texture",
+      "uuid": "f28b6065-153e-4994-8ad1-fb580369026a@6c48a",
+      "displayName": "stick-knob",
+      "id": "6c48a",
+      "name": "texture",
+      "userData": {
+        "wrapModeS": "repeat",
+        "wrapModeT": "repeat",
+        "minfilter": "linear",
+        "magfilter": "linear",
+        "mipfilter": "none",
+        "anisotropy": 0,
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "f28b6065-153e-4994-8ad1-fb580369026a",
+        "visible": false
+      },
+      "ver": "1.0.22",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f9941": {
+      "importer": "sprite-frame",
+      "uuid": "f28b6065-153e-4994-8ad1-fb580369026a@f9941",
+      "displayName": "stick-knob",
+      "id": "f9941",
+      "name": "spriteFrame",
+      "userData": {
+        "trimThreshold": 1,
+        "rotated": false,
+        "offsetX": 0.5,
+        "offsetY": -0.5,
+        "trimX": 13,
+        "trimY": 7,
+        "width": 317,
+        "height": 329,
+        "rawWidth": 342,
+        "rawHeight": 342,
+        "borderTop": 0,
+        "borderBottom": 0,
+        "borderLeft": 0,
+        "borderRight": 0,
+        "packable": true,
+        "pixelsToUnit": 100,
+        "pivotX": 0.5,
+        "pivotY": 0.5,
+        "meshType": 0,
+        "vertices": {
+          "rawPosition": [
+            -158.5,
+            -164.5,
+            0,
+            158.5,
+            -164.5,
+            0,
+            -158.5,
+            164.5,
+            0,
+            158.5,
+            164.5,
+            0
+          ],
+          "indexes": [
+            0,
+            1,
+            2,
+            2,
+            1,
+            3
+          ],
+          "uv": [
+            13,
+            335,
+            330,
+            335,
+            13,
+            6,
+            330,
+            6
+          ],
+          "nuv": [
+            0.038011695906432746,
+            0.017543859649122806,
+            0.9649122807017544,
+            0.017543859649122806,
+            0.038011695906432746,
+            0.97953216374269,
+            0.9649122807017544,
+            0.97953216374269
+          ],
+          "minPos": [
+            -158.5,
+            -164.5,
+            0
+          ],
+          "maxPos": [
+            158.5,
+            164.5,
+            0
+          ]
+        },
+        "isUuid": true,
+        "imageUuidOrDatabaseUri": "f28b6065-153e-4994-8ad1-fb580369026a@6c48a",
+        "atlasUuid": "",
+        "trimType": "auto"
+      },
+      "ver": "1.0.12",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "type": "sprite-frame",
+    "fixAlphaTransparencyArtifacts": true,
+    "hasAlpha": true,
+    "redirect": "f28b6065-153e-4994-8ad1-fb580369026a@6c48a"
+  }
+}

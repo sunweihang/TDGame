@@ -54,7 +54,10 @@ function applySteel(root: Node, tex: Texture2D): void {
   for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
     const slots = mr.sharedMaterials.length;
-    for (let s = 0; s < slots; s++) mr.getSharedMaterial(s)?.setProperty('mainTexture', tex);
+    for (let s = 0; s < slots; s++) {
+      mr.getSharedMaterial(s)?.setProperty('mainTexture', tex);
+      mr.getMaterialInstance(s)?.setProperty('mainTexture', tex);
+    }
   }
 }
 
@@ -742,7 +745,7 @@ export class TurretGun extends Component {
     else this._bindTwin(gun);
   }
 
-  /** Twin barrels share one mesh. Each muzzle fires its own bullet along the same aim. */
+  /** Twin barrels share one mesh. Each muzzle fires its own bullet along the bore. */
   private _bindTwin(gun: Gun): void {
     gun.muzzles.length = 0;
     const barrel = gun.barrel;
@@ -769,7 +772,7 @@ export class TurretGun extends Component {
     gun.muzzle.set((left.x + right.x) * 0.5, (left.y + right.y) * 0.5, (left.z + right.z) * 0.5);
   }
 
-  /** Nine mouths on 10003. Each one fires with the same aim, starting at that barrel. */
+  /** Nine mouths on 10003. Each one fires along the bore, starting at that barrel. */
   private _bindNine(gun: Gun): void {
     gun.muzzles.length = 0;
     const barrel = gun.barrel;
@@ -881,7 +884,8 @@ export class TurretGun extends Component {
     head.setPosition(_local);
   }
 
-  private _fire(gun: Gun, aim: Vec3): void {
+  /** The bolt leaves each muzzle along the bore. It does not bend toward the monster. */
+  private _fire(gun: Gun): void {
     const head = gun.head ?? gun.root;
     const scene = this.node.scene;
     if (!head?.isValid || !scene) return;
@@ -896,11 +900,9 @@ export class TurretGun extends Component {
       this._applyYaw(gun);
     }
     head.updateWorldTransform();
-    Vec3.transformMat4(_world, gun.muzzle, head.worldMatrix);
-    _dir.set(aim.x - _world.x, aim.y - _world.y, aim.z - _world.z);
-    if (_dir.lengthSqr() < 1e-6) Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
+    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
     if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
-    _dir.normalize();
+    else _dir.normalize();
     const mouths = gun.muzzles.length >= 2 ? gun.muzzles : [gun.muzzle];
     const nudge = this._height * 0.04;
     for (let i = 0; i < mouths.length; i++) {
@@ -1019,7 +1021,7 @@ export class TurretGun extends Component {
       gun.cool -= dt;
       if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
       gun.cool = SHOT_GAP;
-      this._fire(gun, _mark);
+      this._fire(gun);
     }
   };
 }

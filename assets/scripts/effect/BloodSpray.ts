@@ -1,15 +1,18 @@
-import { _decorator, assetManager, Component, Layers, Node, ParticleSystem, Prefab, Vec3, instantiate } from 'cc';
+import { _decorator, assetManager, Component, Layers, Node, ParticleSystem, Prefab, Vec3, game, instantiate } from 'cc';
 
 const { ccclass } = _decorator;
 
 const BAOJANG = 'd92365c1-24ce-45a2-b09f-97c20028db68';
 const HOLD = 2.4;
+/** One puff per body. The burst is still on screen for about half a second. */
+const SPRAY_GAP = 0.55;
 
 let _prefab: Prefab | null = null;
 let _loading = false;
 
 type Pending = { parent: Node; pos: Vec3 };
 const _pending: Pending[] = [];
+const _sprayAt = new Map<Node, number>();
 
 @ccclass('BloodSpray')
 class BloodSpray extends Component {
@@ -85,7 +88,22 @@ export function preloadBloodSpray(): void {
   });
 }
 
-export function playBloodSpray(parent: Node, worldPos: Vec3): void {
+function takeSpray(who: Node): boolean {
+  const now = game.totalTime * 0.001;
+  const prev = _sprayAt.get(who);
+  if (prev !== undefined && now - prev < SPRAY_GAP) return false;
+  _sprayAt.set(who, now);
+  if (_sprayAt.size <= 32) return true;
+  for (const [node, t] of _sprayAt) {
+    if (!node.isValid || now - t > 2) _sprayAt.delete(node);
+  }
+  return true;
+}
+
+/** `who` keeps a second burst from stacking on the same body. */
+export function playBloodSpray(parent: Node, worldPos: Vec3, who?: Node): void {
+  if (!parent?.isValid) return;
+  if (who?.isValid && !takeSpray(who)) return;
   const pos = worldPos.clone();
   if (_prefab) {
     spawn(parent, pos, _prefab);

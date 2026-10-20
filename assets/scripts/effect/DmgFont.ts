@@ -1,17 +1,24 @@
 import { Camera, Color, Label, Layers, Node, UIOpacity, UITransform, Vec3, Widget } from 'cc';
 
 /**
- * XPHero DmgFont + DmgFontMotion_Default.
- * Sizes are the original 720 canvas, then ×1.5 onto this 1080 canvas.
+ * Each hit pops its own number on the crown (`blood`, else a short head lift)
+ * and floats up on its own. Later shots do not add into a number already in the air.
  * 0.8s: scale 1.7 → 1 → 0.5, rise, then fade.
- * Hits on the same body in one frame merge. Hits are lemon, crits are gold, hurts are red.
- * A child named `blood` is the pop point; otherwise the body origin plus a head lift.
+ * Offsets are the original 720 canvas, then ×1.5 onto this 1080 canvas.
+ * This camera shows about 80 meters top to bottom, so the rise stays a short
+ * lift off the head instead of the old multi-meter screen offset.
+ * Hits are lemon, crits are gold, hurts are red.
  */
 const UI = 1080 / 720;
 const DURATION = 0.8;
 const FONT_HIT = 12;
 const FONT_CRIT = 19;
 const MAX_PER_FRAME = 30;
+/** 720-canvas pixels. Wide enough that a two-digit pop does not cover the last one. */
+const SCATTER_X = 46;
+const SCATTER_Y0 = -10;
+const SCATTER_Y1 = 52;
+const SCATTER_GAP = 28;
 const INK_HIT = new Color(255, 220, 72, 255);
 const INK_CRIT = new Color(255, 244, 0, 255);
 const INK_PLAYER = new Color(248, 95, 95, 255);
@@ -27,6 +34,9 @@ type Floater = {
   layX: number;
   layY: number;
   at: Vec3;
+  target: Node | null;
+  amount: number;
+  kind: Kind;
 };
 
 type Pending = {
@@ -34,7 +44,6 @@ type Pending = {
   amount: number;
   crit: boolean;
   player: boolean;
-  at: Vec3;
 };
 
 const _world = new Vec3();
@@ -42,7 +51,6 @@ const _ui = new Vec3();
 const _eye = new Vec3();
 const _live: Floater[] = [];
 const _pool: Floater[] = [];
-const _pending = new Map<Node, Pending>();
 const _queue: Pending[] = [];
 
 let _root: Node | null = null;
@@ -52,7 +60,6 @@ export function mountDmgFont(canvas: Node): void {
   if (_root?.isValid) _root.destroy();
   _live.length = 0;
   _pool.length = 0;
-  _pending.clear();
   _queue.length = 0;
   _canvas = canvas;
   const root = new Node('DmgFonts');
@@ -76,27 +83,16 @@ export function mountDmgFont(canvas: Node): void {
 
 export function showDmgFont(target: Node, amount: number, kind: Kind): void {
   if (!target?.isValid || amount <= 0) return;
-  const got = _pending.get(target);
-  if (got) {
-    got.amount += amount;
-    got.crit = got.crit || kind === 'crit';
-    got.player = got.player || kind === 'player';
-    return;
-  }
-  const at = new Vec3();
-  overhead(target, at);
-  _pending.set(target, {
+  _queue.push({
     node: target,
     amount,
     crit: kind === 'crit',
     player: kind === 'player',
-    at,
   });
 }
 
 export function tickDmgFont(dt: number, cam: Camera | null): void {
   if (_root?.isValid && _root.parent) _root.setSiblingIndex(_root.parent.children.length - 1);
-  flushPending();
   let made = 0;
   while (_queue.length && made < MAX_PER_FRAME) {
     const job = _queue.shift()!;
@@ -107,6 +103,8 @@ export function tickDmgFont(dt: number, cam: Camera | null): void {
   const canvas = _canvas;
   for (let i = _live.length - 1; i >= 0; i--) {
     const floater = _live[i];
+    const target = floater.target;
+    if (target?.isValid) overhead(target, floater.at);
     floater.life += dt;
     const u = Math.min(1, floater.life / DURATION);
     const scale = scaleAt(u);
@@ -117,31 +115,66 @@ export function tickDmgFont(dt: number, cam: Camera | null): void {
     if (!shown) floater.node.active = false;
     if (floater.life < DURATION) continue;
     floater.node.active = false;
+    floater.target = null;
     _pool.push(floater);
     _live.splice(i, 1);
   }
 }
 
-function flushPending(): void {
-  if (!_pending.size) return;
-  for (const job of _pending.values()) _queue.push(job);
-  _pending.clear();
+function resolveKind(player: boolean, crit: boolean): Kind {
+  if (player) return 'player';
+  if (crit) return 'crit';
+  return 'hit';
 }
 
-function spawn(job: Pending): void {
-  if (!_root?.isValid) return;
-  const kind: Kind = job.player ? 'player' : job.crit ? 'crit' : 'hit';
-  const floater = rent();
+function paint(floater: Floater): void {
+  const kind = floater.kind;
   const size = (kind === 'crit' ? FONT_CRIT : FONT_HIT) * UI;
-  floater.life = 0;
-  floater.layX = Math.random() * 20 - 10;
-  floater.layY = 10 + (job.player ? -11 : 0) + (job.crit ? 20 : 0);
-  floater.at.set(job.at);
-  floater.lab.string = formatCount(job.amount);
+  floater.lab.string = formatCount(floater.amount);
   floater.lab.fontSize = size;
   floater.lab.lineHeight = size + 4;
   floater.lab.color = kind === 'crit' ? INK_CRIT : kind === 'player' ? INK_PLAYER : INK_HIT;
   floater.lab.outlineWidth = Math.max(2, Math.round(size * 0.1));
+}
+
+function scatter(target: Node, floater: Floater): void {
+  let bestX = 0;
+  let bestY = 0;
+  let best = -1;
+  for (let n = 0; n < 10; n++) {
+    const x = Math.random() * (SCATTER_X * 2) - SCATTER_X;
+    const y = SCATTER_Y0 + Math.random() * (SCATTER_Y1 - SCATTER_Y0);
+    let near = 1e9;
+    for (let i = 0; i < _live.length; i++) {
+      const other = _live[i];
+      if (other.target !== target) continue;
+      const dx = x - other.layX;
+      const dy = y - (other.layY + offsetYAt(Math.min(1, other.life / DURATION)));
+      const d = dx * dx + dy * dy;
+      if (d < near) near = d;
+    }
+    if (near > best) {
+      best = near;
+      bestX = x;
+      bestY = y;
+    }
+    if (near >= SCATTER_GAP * SCATTER_GAP) break;
+  }
+  floater.layX = bestX;
+  floater.layY = bestY;
+}
+
+function spawn(job: Pending): void {
+  if (!_root?.isValid || !job.node.isValid) return;
+  const kind = resolveKind(job.player, job.crit);
+  const floater = rent();
+  floater.life = 0;
+  floater.kind = kind;
+  floater.amount = job.amount;
+  floater.target = job.node;
+  scatter(job.node, floater);
+  overhead(job.node, floater.at);
+  paint(floater);
   floater.node.active = true;
   floater.node.setScale(1.7, 1.7, 1);
   floater.fade.opacity = 255;
@@ -170,7 +203,7 @@ function rent(): Floater {
   lab.verticalAlign = Label.VerticalAlign.CENTER;
   lab.overflow = Label.Overflow.NONE;
   passThrough(node);
-  return { node, lab, fade, life: 0, layX: 0, layY: 0, at: new Vec3() };
+  return { node, lab, fade, life: 0, layX: 0, layY: 0, at: new Vec3(), target: null, amount: 0, kind: 'hit' };
 }
 
 /** Combat text sits on the canvas but must not eat taps on the plant bar. */
@@ -245,10 +278,10 @@ function scaleAt(u: number): number {
   return hermite(0.5208, 1, 0, 1, 0.5, 0, u);
 }
 
-/** Offset Y on the 720 canvas: 80.4 → 129.9 by 0.271, then hold. */
+/** Rise on the 720 canvas, starting on the crown. About 42px on this 1080 canvas. */
 function offsetYAt(u: number): number {
-  if (u <= 0.2708) return hermite(0, 80.4062, 244.6497, 0.2708, 129.9325, 0.8929, u);
-  return 129.9325;
+  if (u <= 0.28) return hermite(0, 0, 140, 0.28, 28, 0, u);
+  return 28;
 }
 
 /** Alpha holds through 0.417, then fades out. */

@@ -141,6 +141,7 @@
     "_reflectionProbeBlendWeight": 0,
     "_enabledGlobalStandardSkinObject": false,
     "_enableMorph": true,
+    "_priority": 12,
     "_id": ""
   },
   {
@@ -262,6 +263,7 @@
     "_reflectionProbeBlendWeight": 0,
     "_enabledGlobalStandardSkinObject": false,
     "_enableMorph": true,
+    "_priority": 8,
     "_id": ""
   },
   {

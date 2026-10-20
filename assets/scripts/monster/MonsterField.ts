@@ -152,7 +152,7 @@ export class MonsterField extends Component {
     root.setScale(size, size, size);
     const unit = root.addComponent(MonsterUnit);
     unit.size = size;
-    unit.hp = heavy ? 70 : 28;
+    unit.hp = heavy ? 7000 : 2800;
     unit.bite = heavy ? 12 : 6;
     unit.follow(route, mover);
     mover.updateWorldTransform();
