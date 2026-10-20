@@ -1,0 +1,12 @@
+[
+  {
+    "id": "stacked-silhouette",
+    "score": 0.42,
+    "notes": "Base, neck, head and barrel are present, but the head is a cube and the base is a slab. The reference mass is faceted and stepped."
+  },
+  {
+    "id": "barrel-forward",
+    "score": 0.55,
+    "notes": "The barrel leaves the head on a horizontal axis. Length, taper and muzzle step do not match the reference."
+  }
+]

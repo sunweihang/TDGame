@@ -9,13 +9,13 @@ import {
   MeshRenderer,
   Node,
   Prefab,
+  Texture2D,
   Quat,
   Vec3,
   assetManager,
   director,
   game,
   gfx,
-  instantiate,
 } from 'cc';
 import { createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
@@ -23,7 +23,6 @@ import { TurretPlate } from './TurretPlate.ts';
 
 const { ccclass } = _decorator;
 
-const TURRET_PREFAB = '5f29dbf5-f3db-4154-8039-551d8604308c@8e5e9';
 const BULLET_20000 = '67b521f6-7e75-465a-a78e-f860d0e19013';
 const TARGET_HEIGHT = 2.35;
 const SHOT_GAP = 0.16;
@@ -43,8 +42,49 @@ const _wAxis = new Vec3();
 const _side = new Vec3();
 const _spec = new Color(200, 214, 232, 255);
 const _dust = new Color(232, 236, 244, 255);
+const STEEL_TEX: Record<string, string> = {
+  '10002': 'f76eb578-6645-4fa2-b30e-4d130d714683@6c48a',
+  '10003': '828784a6-48d7-4fdc-b793-ad632cb4261c@6c48a',
+};
+const _steel = new Map<string, Texture2D>();
+const _steelWait = new Map<string, Node[]>();
+
+function applySteel(root: Node, tex: Texture2D): void {
+  const renderers = root.getComponentsInChildren(MeshRenderer);
+  for (let i = 0; i < renderers.length; i++) {
+    const mr = renderers[i];
+    const slots = mr.sharedMaterials.length;
+    for (let s = 0; s < slots; s++) mr.getSharedMaterial(s)?.setProperty('mainTexture', tex);
+  }
+}
+
+function loadSteel(root: Node, uuid: string): void {
+  const ready = _steel.get(uuid);
+  if (ready) {
+    applySteel(root, ready);
+    return;
+  }
+  const waiting = _steelWait.get(uuid);
+  if (waiting) {
+    waiting.push(root);
+    return;
+  }
+  _steelWait.set(uuid, [root]);
+  assetManager.loadAny({ uuid }, (err, asset) => {
+    const nodes = _steelWait.get(uuid) ?? [];
+    _steelWait.delete(uuid);
+    if (err || !(asset instanceof Texture2D)) return;
+    _steel.set(uuid, asset);
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      if (node.isValid) applySteel(node, asset);
+    }
+  });
+}
 
 function toneTurret(root: Node): void {
+  const steelId = STEEL_TEX[root.name];
+  const steel = steelId ? _steel.get(steelId) : undefined;
   const renderers = root.getComponentsInChildren(MeshRenderer);
   for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
@@ -60,9 +100,11 @@ function toneTurret(root: Node): void {
       mat.setProperty('specularColor', _spec);
       mat.setProperty('roughness', 0.58);
       mat.setProperty('metallic', 0.55);
+      if (steel) mat.setProperty('mainTexture', steel);
       mr.setSharedMaterial(mat, s);
     }
   }
+  if (steelId && !steel) loadSteel(root, steelId);
 }
 
 type Cap = { center: Vec3; dir: Vec3; spread: number };
@@ -85,6 +127,8 @@ type Gun = {
   /** Barrel child. Its clip keeps a neck-height Z that drops the mesh out of the head. */
   barrel: Node | null;
   barrelZ: number;
+  /** Head-local muzzle pair. Empty means one shot from `muzzle`. */
+  muzzles: Vec3[];
   restRot: Quat;
   restPos: Vec3;
   rawPos: Vec3;
@@ -278,8 +322,215 @@ function tightestHorizontalCap(points: Vec3[]): Cap | null {
   return best;
 }
 
+function averageRange(data: ArrayLike<number>, order: number[], from: number, to: number, out: Vec3): void {
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  const n = to - from;
+  for (let k = from; k < to; k++) {
+    const i = order[k] * 3;
+    x += data[i];
+    y += data[i + 1];
+    z += data[i + 2];
+  }
+  out.set(x / n, y / n, z / n);
+}
+
+/**
+ * Two muzzle centers on one barrel mesh, in mesh space.
+ * A single tube such as 10001 stays one shot: its muzzle face has no wide gap.
+ */
+function twinMuzzlePoints(data: ArrayLike<number>, outA: Vec3, outB: Vec3): boolean {
+  const n = (data.length / 3) | 0;
+  if (n < 8) return false;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  const span = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  let axis = 0;
+  if (span[1] > span[axis]) axis = 1;
+  if (span[2] > span[axis]) axis = 2;
+  if (span[axis] < 0.2) return false;
+  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+  const tip = sign > 0 ? max[axis] : min[axis];
+  const band = span[axis] * 0.18;
+  const cap: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = data[i * 3 + axis];
+    if (sign > 0 ? v >= tip - band : v <= tip + band) cap.push(i);
+  }
+  if (cap.length < 8) return false;
+  let bestSide = -1;
+  let bestGap = 0;
+  for (let side = 0; side < 3; side++) {
+    if (side === axis) continue;
+    const vals: number[] = [];
+    for (let k = 0; k < cap.length; k++) vals.push(data[cap[k] * 3 + side]);
+    vals.sort((a, b) => a - b);
+    let gap = 0;
+    for (let k = 1; k < vals.length; k++) {
+      const g = vals[k] - vals[k - 1];
+      if (g > gap) gap = g;
+    }
+    if (gap > bestGap) {
+      bestGap = gap;
+      bestSide = side;
+    }
+  }
+  if (bestSide < 0 || bestGap < 0.45) return false;
+  const order = cap.slice().sort((i, j) => data[i * 3 + bestSide] - data[j * 3 + bestSide]);
+  let at = 1;
+  let gap = 0;
+  for (let k = 1; k < order.length; k++) {
+    const g = data[order[k] * 3 + bestSide] - data[order[k - 1] * 3 + bestSide];
+    if (g > gap) {
+      gap = g;
+      at = k;
+    }
+  }
+  if (at < 4 || order.length - at < 4) return false;
+  averageRange(data, order, 0, at, outA);
+  averageRange(data, order, at, order.length, outB);
+  const dx = outA.x - outB.x;
+  const dy = outA.y - outB.y;
+  const dz = outA.z - outB.z;
+  return dx * dx + dy * dy + dz * dz > 0.49;
+}
+
 function axisComp(axis: number): 'x' | 'y' | 'z' {
   return axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
+}
+
+/** Two cuts that leave at least 20 vertices on both sides. The small rim gaps stay out. */
+function twoWideCuts(data: ArrayLike<number>, ids: number[], axis: number): [number, number] | null {
+  const order = ids.slice().sort((i, j) => data[i * 3 + axis] - data[j * 3 + axis]);
+  const gaps: { g: number; mid: number }[] = [];
+  for (let k = 1; k < order.length; k++) {
+    if (k < 20 || order.length - k < 20) continue;
+    const a = data[order[k - 1] * 3 + axis];
+    const b = data[order[k] * 3 + axis];
+    gaps.push({ g: b - a, mid: (a + b) * 0.5 });
+  }
+  gaps.sort((p, q) => q.g - p.g);
+  if (gaps.length < 2 || gaps[1].g < 0.08) return null;
+  const cuts = [gaps[0].mid, gaps[1].mid].sort((a, b) => a - b);
+  if (cuts[1] - cuts[0] < 0.15) return null;
+  return [cuts[0], cuts[1]];
+}
+
+/** Drop a short tail hanging off one mouth, such as the plate rim beside the right barrels. */
+function trimCellTail(data: ArrayLike<number>, ids: number[], axis: number): number[] {
+  let order = ids.slice().sort((i, j) => data[i * 3 + axis] - data[j * 3 + axis]);
+  for (let pass = 0; pass < 3; pass++) {
+    let best = 0;
+    let at = -1;
+    for (let k = 1; k < order.length; k++) {
+      const g = data[order[k] * 3 + axis] - data[order[k - 1] * 3 + axis];
+      if (g > best) {
+        best = g;
+        at = k;
+      }
+    }
+    if (best < 0.12 || at < 0) break;
+    const left = at;
+    const right = order.length - at;
+    if (left <= right && left <= 8) {
+      order = order.slice(at);
+      continue;
+    }
+    if (right < left && right <= 8) {
+      order = order.slice(0, at);
+      continue;
+    }
+    break;
+  }
+  return order;
+}
+
+/**
+ * Nine muzzle centers on turret 10003, in mesh space.
+ * The mouths are a 3x3 on the barrel tip. They are fused into the face, so the twin splitter finds no gap.
+ */
+function nineMuzzlePoints(data: ArrayLike<number>, out: Vec3[]): boolean {
+  const n = (data.length / 3) | 0;
+  if (n < 64) return false;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  const span = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+  let axis = 0;
+  if (span[1] > span[axis]) axis = 1;
+  if (span[2] > span[axis]) axis = 2;
+  if (span[axis] < 0.2) return false;
+  const band = span[axis] * 0.04;
+  const lo: number[] = [];
+  const hi: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = data[i * 3 + axis];
+    if (v <= min[axis] + band) lo.push(i);
+    if (v >= max[axis] - band) hi.push(i);
+  }
+  const cap = lo.length >= hi.length ? lo : hi;
+  if (cap.length < 60) return false;
+  const sideA = (axis + 1) % 3;
+  const sideB = (axis + 2) % 3;
+  const cutsA = twoWideCuts(data, cap, sideA);
+  const cutsB = twoWideCuts(data, cap, sideB);
+  if (!cutsA || !cutsB) return false;
+  const cells: number[][] = [[], [], [], [], [], [], [], [], []];
+  for (let k = 0; k < cap.length; k++) {
+    const i = cap[k];
+    const a = data[i * 3 + sideA];
+    const b = data[i * 3 + sideB];
+    const ca = a < cutsA[0] ? 0 : a < cutsA[1] ? 1 : 2;
+    const cb = b < cutsB[0] ? 0 : b < cutsB[1] ? 1 : 2;
+    cells[cb * 3 + ca].push(i);
+  }
+  out.length = 0;
+  for (let c = 0; c < 9; c++) {
+    const cell = trimCellTail(data, trimCellTail(data, cells[c], sideA), sideB);
+    if (cell.length < 6) return false;
+    const point = new Vec3();
+    averageRange(data, cell, 0, cell.length, point);
+    out.push(point);
+  }
+  if (out.length !== 9) return false;
+  // The bolt halo is wider than the real tube pitch, so the measured mouths look stacked.
+  // Push the 3x3 out from its center. Depth along the barrel stays on the muzzle plane.
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < out.length; i++) {
+    cx += out[i].x;
+    cy += out[i].y;
+    cz += out[i].z;
+  }
+  const inv = 1 / out.length;
+  cx *= inv;
+  cy *= inv;
+  cz *= inv;
+  const spread = 1.6;
+  for (let i = 0; i < out.length; i++) {
+    const p = out[i];
+    if (axis !== 0) p.x = cx + (p.x - cx) * spread;
+    if (axis !== 1) p.y = cy + (p.y - cy) * spread;
+    if (axis !== 2) p.z = cz + (p.z - cz) * spread;
+  }
+  return true;
 }
 
 @ccclass('TurretGun')
@@ -287,12 +538,13 @@ export class TurretGun extends Component {
   private _guns: Gun[] = [];
   private _height = TARGET_HEIGHT;
   private _ready = false;
-  private _attempts = 0;
   private _bullet: Prefab | null = null;
   private _bulletAttempts = 0;
 
   onLoad(): void {
     director.on(Director.EVENT_AFTER_UPDATE, this._afterUpdate, this);
+    const parked = this._collect(this.node.scene);
+    for (let i = 0; i < parked.length; i++) parked[i].active = false;
   }
 
   onDestroy(): void {
@@ -301,14 +553,7 @@ export class TurretGun extends Component {
 
   start(): void {
     this._loadBullet();
-    const scene = this.node.scene;
-    const existing = this._collect(scene);
-    if (existing.length) {
-      for (let i = 0; i < existing.length; i++) this._arm(existing[i], false, i, existing.length);
-      this._ready = true;
-      return;
-    }
-    this._load();
+    this._ready = true;
   }
 
   get turrets(): Node[] {
@@ -333,33 +578,10 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003') found.push(kids[i]);
     }
     return found;
   }
-
-  private _load = (): void => {
-    assetManager.loadAny({ uuid: TURRET_PREFAB }, (err, asset) => {
-      if (err || !(asset instanceof Prefab)) {
-        this._attempts += 1;
-        if (this._attempts < 24) {
-          this.scheduleOnce(this._load, 0.5);
-          return;
-        }
-        console.error('[TurretGun] robotic_turret_animated failed to load', err);
-        return;
-      }
-      const scene = this.node.scene;
-      if (!scene) return;
-      const root = instantiate(asset);
-      root.name = '10000';
-      scene.addChild(root);
-      root.setPosition(0, 0, 0);
-      root.setScale(1, 1, 1);
-      this._arm(root, true, 0, 1);
-      this._ready = true;
-    });
-  };
 
   private _arm(root: Node, fit: boolean, index: number, count: number): void {
     if (!this.node.scene) return;
@@ -380,6 +602,7 @@ export class TurretGun extends Component {
       pivotRest: new Quat(),
       barrel: null,
       barrelZ: 0,
+      muzzles: [],
       restRot: new Quat(),
       restPos: new Vec3(),
       rawPos: new Vec3(),
@@ -515,6 +738,69 @@ export class TurretGun extends Component {
     }
     gun.socket = measureSocket(head, gun.yawAxis, gun.neck);
     if (gun.socket) this._seatPivot(gun);
+    if (gun.root.name === '10003') this._bindNine(gun);
+    else this._bindTwin(gun);
+  }
+
+  /** Twin barrels share one mesh. Each muzzle fires its own bullet along the same aim. */
+  private _bindTwin(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const barrel = gun.barrel;
+    const head = gun.head;
+    if (!barrel?.isValid || !head?.isValid) return;
+    const mesh = barrel.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    if (!data || !twinMuzzlePoints(data, _local, _side)) return;
+    barrel.updateWorldTransform();
+    head.updateWorldTransform();
+    const left = new Vec3();
+    const right = new Vec3();
+    Vec3.transformMat4(_world, _local, barrel.worldMatrix);
+    head.inverseTransformPoint(left, _world);
+    Vec3.transformMat4(_world, _side, barrel.worldMatrix);
+    head.inverseTransformPoint(right, _world);
+    gun.muzzles.push(left, right);
+    gun.muzzle.set((left.x + right.x) * 0.5, (left.y + right.y) * 0.5, (left.z + right.z) * 0.5);
+  }
+
+  /** Nine mouths on 10003. Each one fires with the same aim, starting at that barrel. */
+  private _bindNine(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const barrel = gun.barrel;
+    const head = gun.head;
+    if (!barrel?.isValid || !head?.isValid) return;
+    const mesh = barrel.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    const mouths: Vec3[] = [];
+    if (!data || !nineMuzzlePoints(data, mouths)) return;
+    barrel.updateWorldTransform();
+    head.updateWorldTransform();
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    for (let i = 0; i < mouths.length; i++) {
+      const local = new Vec3();
+      Vec3.transformMat4(_world, mouths[i], barrel.worldMatrix);
+      head.inverseTransformPoint(local, _world);
+      gun.muzzles.push(local);
+      sx += local.x;
+      sy += local.y;
+      sz += local.z;
+    }
+    const inv = 1 / mouths.length;
+    gun.muzzle.set(sx * inv, sy * inv, sz * inv);
   }
 
   /**
@@ -529,7 +815,10 @@ export class TurretGun extends Component {
     if (!barrel) return;
     const minZ = barrel.getComponent(MeshRenderer)?.mesh?.struct.minPosition.z ?? 0;
     const nodeZ = barrel.position.z;
-    if (minZ > 0.8 && nodeZ < -0.4) gun.barrelZ = nodeZ;
+    const dropped = minZ + nodeZ < 0;
+    if ((minZ > 0.8 && nodeZ < -0.4) || (minZ > 0.05 && nodeZ < -0.4 && dropped) || (minZ < 0 && nodeZ < -0.4)) {
+      gun.barrelZ = nodeZ;
+    }
     this._liftBarrel(gun);
   }
 
@@ -612,9 +901,16 @@ export class TurretGun extends Component {
     if (_dir.lengthSqr() < 1e-6) Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
     if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
     _dir.normalize();
-    Vec3.scaleAndAdd(_world, _world, _dir, this._height * 0.04);
-    createLaserFlash(head, _world, this._height * 0.28, 0.09);
-    if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir, this._height);
+    const mouths = gun.muzzles.length >= 2 ? gun.muzzles : [gun.muzzle];
+    const nudge = this._height * 0.04;
+    for (let i = 0; i < mouths.length; i++) {
+      Vec3.transformMat4(_world, mouths[i], head.worldMatrix);
+      _world.x += _dir.x * nudge;
+      _world.y += _dir.y * nudge;
+      _world.z += _dir.z * nudge;
+      createLaserFlash(head, _world, this._height * 0.28, 0.09);
+      if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir, this._height);
+    }
   }
 
   private _loadBullet = (): void => {

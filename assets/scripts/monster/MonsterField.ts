@@ -10,11 +10,11 @@ import {
   SkeletalAnimation,
   SkinnedMeshRenderer,
   Texture2D,
-  Vec3,
   instantiate,
 } from 'cc';
 import { preloadBloodSpray } from '../effect/BloodSpray.ts';
 import { MonsterUnit } from './MonsterUnit.ts';
+import { ROUTES } from './MonsterRoute.ts';
 
 const { ccclass } = _decorator;
 
@@ -25,12 +25,15 @@ const COUNT = 10;
 const FOOT_Y = 0.02;
 const LIGHT_SIZE = 0.74;
 const HEAVY_SIZE = 1.42;
-const _lit = new Color(255, 255, 255, 255);
-const _spec = new Color(214, 198, 220, 255);
-const X0 = -31.75;
-const X1 = 24.25;
-const Z0 = -39;
-const Z1 = 17;
+const COATS = [
+  new Color(204, 98, 46, 255),
+  new Color(184, 48, 44, 255),
+  new Color(212, 154, 46, 255),
+  new Color(78, 158, 68, 255),
+  new Color(206, 176, 112, 255),
+  new Color(156, 84, 186, 255),
+];
+const GATE_GAP = 4;
 
 @ccclass('MonsterField')
 export class MonsterField extends Component {
@@ -40,7 +43,6 @@ export class MonsterField extends Component {
   private _albedoReady = false;
   private _glowReady = false;
   private _attempts = 0;
-  private _edge = 0;
   private _born = 0;
   private _holder: Node | null = null;
 
@@ -75,10 +77,10 @@ export class MonsterField extends Component {
     for (let i = 0; i < units.length; i++) {
       if (units[i].threat) alive += 1;
     }
-    while (alive < COUNT) {
-      this._spawn(holder, prefab);
-      alive += 1;
-    }
+    if (alive >= COUNT) return;
+    const gate = this._openGate();
+    if (gate < 0) return;
+    this._spawn(holder, prefab, gate);
   }
 
   private _loadTex(uuid: string, done: (tex: Texture2D) => void, fail?: () => void, left = 40): void {
@@ -110,25 +112,53 @@ export class MonsterField extends Component {
     });
   };
 
-  private _spawn(holder: Node, prefab: Prefab): void {
+  private _openGate(): number {
+    for (let n = 0; n < ROUTES.length; n++) {
+      const gate = (this._born + n) % ROUTES.length;
+      const mouth = ROUTES[gate][0];
+      if (this._clear(mouth[0], mouth[1])) return gate;
+    }
+    return -1;
+  }
+
+  private _clear(x: number, z: number): boolean {
+    const units = MonsterUnit.all;
+    for (let i = 0; i < units.length; i++) {
+      const unit = units[i];
+      if (!unit.threat) continue;
+      const p = unit.node.worldPosition;
+      const dx = p.x - x;
+      const dz = p.z - z;
+      if (dx * dx + dz * dz < GATE_GAP * GATE_GAP) return false;
+    }
+    return true;
+  }
+
+  private _spawn(holder: Node, prefab: Prefab, gate: number): void {
+    const route = ROUTES[gate];
     const root = instantiate(prefab);
     root.name = '30000';
     const anim = root.getComponent(SkeletalAnimation) ?? root.getComponentInChildren(SkeletalAnimation);
     if (anim) anim.useBakedAnimation = false;
-    holder.addChild(root);
-    this._light(root);
+    const mover = new Node('mover');
+    holder.addChild(mover);
+    mover.setWorldPosition(route[0][0], FOOT_Y, route[0][1]);
+    mover.addChild(root);
+    root.setPosition(0, 0, 0);
+    this._light(root, COATS[this._born % COATS.length]);
     const heavy = this._born % 4 === 0;
     this._born += 1;
     const size = heavy ? HEAVY_SIZE : LIGHT_SIZE;
     root.setScale(size, size, size);
-    root.setWorldPosition(this._edgePoint());
     const unit = root.addComponent(MonsterUnit);
     unit.size = size;
     unit.hp = heavy ? 70 : 28;
     unit.bite = heavy ? 12 : 6;
+    unit.follow(route, mover);
+    mover.updateWorldTransform();
   }
 
-  private _light(root: Node): void {
+  private _light(root: Node, coat: Color): void {
     const anim = root.getComponent(SkeletalAnimation) ?? root.getComponentInChildren(SkeletalAnimation);
     if (anim) anim.useBakedAnimation = false;
     const skins = root.getComponentsInChildren(SkinnedMeshRenderer);
@@ -156,37 +186,31 @@ export class MonsterField extends Component {
       }
       const tex = src?.getProperty('mainTexture');
       if (tex) mat.setProperty('mainTexture', tex);
-      this._paint(mat);
+      this._paint(mat, coat);
       skin.setSharedMaterial(mat, 0);
     }
   }
 
-  private _paint(mat: Material): void {
+  private _paint(mat: Material, coat: Color): void {
     if (this._albedo) mat.setProperty('mainTexture', this._albedo);
     if (this._glow) mat.setProperty('emissiveMap', this._glow);
-    this._shade(mat);
+    this._shade(mat, coat);
   }
 
-  private _shade(mat: Material): void {
-    mat.setProperty('mainColor', _lit);
+  private _shade(mat: Material, coat: Color): void {
+    mat.setProperty('mainColor', coat);
     mat.setProperty('albedoScale', 1);
-    mat.setProperty('specularColor', _spec);
+    mat.setProperty('specularColor', new Color(
+      Math.min(255, Math.round(coat.r * 0.55 + 90)),
+      Math.min(255, Math.round(coat.g * 0.55 + 80)),
+      Math.min(255, Math.round(coat.b * 0.55 + 70)),
+      255,
+    ));
     mat.setProperty('specularFactor', 0.2);
     mat.setProperty('shininessExponent', 68);
     mat.setProperty('transparencyFactor', 1);
     mat.setProperty('emissiveScale', this._glow ? 1.15 : 0);
     mat.setProperty('roughness', 0.46);
     mat.setProperty('metallic', 0.12);
-  }
-  private _edgePoint(): Vec3 {
-    const side = this._edge % 4;
-    this._edge += 1;
-    const along = Math.random();
-    const x = X0 + (X1 - X0) * along;
-    const z = Z0 + (Z1 - Z0) * along;
-    if (side === 0) return new Vec3(x, FOOT_Y, Z1);
-    if (side === 1) return new Vec3(X1, FOOT_Y, z);
-    if (side === 2) return new Vec3(x, FOOT_Y, Z0);
-    return new Vec3(X0, FOOT_Y, z);
   }
 }

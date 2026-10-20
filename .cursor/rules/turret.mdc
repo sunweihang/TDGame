@@ -3,7 +3,7 @@ description: Turret ID, prefab name, size, and Fire clip
 alwaysApply: true
 ---
 
-Turret IDs are decimal numbers starting at 10000. Assigned turrets are 10000 and 10001. The next new turret is 10002, then 10003, and so on. Never reuse or skip an assigned ID.
+Turret IDs are decimal numbers starting at 10000. Assigned turrets are 10000, 10001, 10002, and 10003. The next new turret is 10004, then 10005, and so on. Never reuse or skip an assigned ID.
 
 The prefab file and its root node use the ID as the name, with no prefix: `assets/prefabs/turret/10000.prefab`, node `10000`. Scene instances use that same name. Turret scripts live in `assets/scripts/turret/`.
 

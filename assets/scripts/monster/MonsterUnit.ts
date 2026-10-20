@@ -40,6 +40,18 @@ export class MonsterUnit extends Component {
   private _phase: Phase = 'run';
   private _hurt = false;
   private _target: TurretPlate | null = null;
+  private _mover: Node | null = null;
+  private _route: ReadonlyArray<readonly [number, number]> | null = null;
+  private _seg = 0;
+  private _into = 0;
+
+  /** Walk this road. The mover is the node that actually travels; the mesh stays parented under it. */
+  follow(route: ReadonlyArray<readonly [number, number]>, mover: Node): void {
+    this._route = route;
+    this._mover = mover;
+    this._seg = 0;
+    this._into = 0;
+  }
 
   get threat(): boolean {
     return this._phase !== 'dead' && this.hp > 0;
@@ -110,15 +122,20 @@ export class MonsterUnit extends Component {
     this._play(this._run, AnimationClip.WrapMode.Loop);
   }
 
-  update(dt: number): void {
+  lateUpdate(dt: number): void {
     if (this._phase === 'dead') return;
-    const plate = TurretPlate.nearest(this.node.worldPosition.x, this.node.worldPosition.z);
+    const route = this._route;
+    if (route && this._seg < route.length - 1) {
+      this._along(dt);
+      return;
+    }
+    const here = this._world();
+    const plate = TurretPlate.nearest(here.x, here.z);
     this._target = plate;
     if (!plate) return;
-    const p = this.node.worldPosition;
     const t = plate.node.worldPosition;
-    const dx = t.x - p.x;
-    const dz = t.z - p.z;
+    const dx = t.x - here.x;
+    const dz = t.z - here.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
     this._face(t.x, t.z);
     if (dist > plate.reach) {
@@ -128,10 +145,80 @@ export class MonsterUnit extends Component {
     this._chop(plate);
   }
 
+  /** Stay on the road. Bite a turret only when it is already in reach. */
+  private _along(dt: number): void {
+    const route = this._route;
+    if (!route) return;
+    const here = this._world();
+    const plate = TurretPlate.nearest(here.x, here.z);
+    this._target = plate;
+    if (plate) {
+      const t = plate.node.worldPosition;
+      const reach = Math.sqrt((t.x - here.x) * (t.x - here.x) + (t.z - here.z) * (t.z - here.z));
+      if (reach <= plate.reach) {
+        this._face(t.x, t.z);
+        this._chop(plate);
+        return;
+      }
+    }
+    let left = SPEED * dt;
+    while (left > 0 && this._seg < route.length - 1) {
+      const a = route[this._seg];
+      const b = route[this._seg + 1];
+      const span = Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
+      if (span < 1e-4) {
+        this._into = 0;
+        this._seg += 1;
+        continue;
+      }
+      const remain = span - this._into;
+      if (left < remain) {
+        this._into += left;
+        left = 0;
+      } else {
+        left -= remain;
+        this._into = 0;
+        this._seg += 1;
+      }
+    }
+    if (this._seg >= route.length - 1) {
+      this._vanish();
+      return;
+    }
+    const a = route[this._seg];
+    const b = route[this._seg + 1];
+    const span = Math.max(Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1])), 1e-4);
+    const u = this._into / span;
+    const x = a[0] + (b[0] - a[0]) * u;
+    const z = a[1] + (b[1] - a[1]) * u;
+    this._face(b[0], b[1]);
+    this._place(x, z);
+    if (this._phase !== 'run') {
+      this._phase = 'run';
+      this._play(this._run, AnimationClip.WrapMode.Loop);
+    }
+  }
+
+  private _world(): Vec3 {
+    const mover = this._mover;
+    if (mover?.isValid) return mover.worldPosition;
+    return this.node.worldPosition;
+  }
+
+  private _place(x: number, z: number): void {
+    const mover = this._mover;
+    const node = mover?.isValid ? mover : this.node;
+    _pos.set(x, FOOT_Y, z);
+    node.setWorldPosition(_pos);
+  }
+
   private _face(x: number, z: number): void {
-    const p = this.node.worldPosition;
+    const mover = this._mover;
+    const node = mover?.isValid ? mover : this.node;
+    const p = node.worldPosition;
     _look.set(x, p.y, z);
-    this.node.lookAt(_look);
+    if ((x - p.x) * (x - p.x) + (z - p.z) * (z - p.z) < 1e-6) return;
+    node.lookAt(_look);
   }
 
   private _step(dx: number, dz: number, dist: number, dt: number): void {
@@ -140,13 +227,14 @@ export class MonsterUnit extends Component {
       this._play(this._run, AnimationClip.WrapMode.Loop);
     }
     const scale = SPEED * dt / Math.max(dist, 0.001);
-    let x = this.node.worldPosition.x + dx * scale;
-    let z = this.node.worldPosition.z + dz * scale;
+    const here = this._world();
+    let x = here.x + dx * scale;
+    let z = here.z + dz * scale;
     const others = MonsterUnit.all;
     for (let i = 0; i < others.length; i++) {
       const other = others[i];
       if (other === this || !other.threat) continue;
-      const op = other.node.worldPosition;
+      const op = other._world();
       const ox = x - op.x;
       const oz = z - op.z;
       const d2 = ox * ox + oz * oz;
@@ -157,8 +245,7 @@ export class MonsterUnit extends Component {
       x += ox * inv * push;
       z += oz * inv * push;
     }
-    _pos.set(x, FOOT_Y, z);
-    this.node.setWorldPosition(_pos);
+    this._place(x, z);
   }
 
   private _chop(plate: TurretPlate): void {
@@ -202,12 +289,24 @@ export class MonsterUnit extends Component {
     state.play();
   }
 
+  /** Reached the bottom tip of the road. Leave the map without a death pose. */
+  private _vanish(): void {
+    this._phase = 'dead';
+    this._route = null;
+    this.hp = 0;
+    const mover = this._mover;
+    if (mover?.isValid) mover.destroy();
+    else if (this.node?.isValid) this.node.destroy();
+  }
+
   private _die(): void {
     this._phase = 'dead';
     this.hp = 0;
     this._play(this._dead, AnimationClip.WrapMode.Normal);
     this.scheduleOnce(() => {
-      if (this.node?.isValid) this.node.destroy();
+      const mover = this._mover;
+      if (mover?.isValid) mover.destroy();
+      else if (this.node?.isValid) this.node.destroy();
     }, 1.35);
   }
 

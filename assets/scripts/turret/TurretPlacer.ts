@@ -42,7 +42,7 @@ const _barIdle = new Color(186, 206, 220, 230);
 const _barOn = new Color(120, 196, 150, 242);
 const CARD_W = 186;
 const CARD_H = 186;
-const PLANT_CARD: Record<'10000' | '10001', { idle: string; armed: string }> = {
+const PLANT_CARD: Record<'10000' | '10001' | '10002' | '10003', { idle: string; armed: string }> = {
   '10000': {
     idle: '8fc7a8b0-18b3-4c4d-806e-fec69c41a23a',
     armed: 'fb7f6c1a-d5bc-4507-ae79-b54d70914097',
@@ -51,12 +51,21 @@ const PLANT_CARD: Record<'10000' | '10001', { idle: string; armed: string }> = {
     idle: 'ac0ef9a7-afed-4583-b517-7ec3e3265d98',
     armed: 'b67bd588-cd75-465a-9cf6-4887d0ec165e',
   },
+  '10002': {
+    idle: '7c2a9e14-6d30-4b18-a5f2-10002c1d1e02',
+    armed: '7c2a9e14-6d30-4b18-a5f2-10002a4aed02',
+  },
+  '10003': {
+    idle: '8d3b0f25-7e41-4c29-b603-10003c1d1e03',
+    armed: '8d3b0f25-7e41-4c29-b603-10003a4aed03',
+  },
 };
 const PLACE_GRID = '53837b38-4869-4666-ab51-403a8428a2c4';
 const TURRET_10001 = 'd4e5f6a7-8b9c-4d0e-a1f2-10001bb10001';
+const TURRET_10002 = 'c3a91e20-6d4e-4b19-8a77-10002bb10002';
+const TURRET_10003 = 'd4b02f31-7e5f-4c2a-9b88-10003bb10003';
 
-type Kind = '10000' | '10001';
-type Seat = { root: Node; cx: number; cz: number };
+type Kind = '10000' | '10001' | '10002' | '10003';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
 type BarButton = {
   node: Node;
@@ -66,7 +75,7 @@ type BarButton = {
 };
 
 /**
- * Square-grid placement. The bottom cards choose turret 10000 or 10001.
+ * Square-grid placement. The bottom cards choose turret 10000, 10001, 10002, or 10003.
  * The laser cell and hologram exist only while a turret button is armed.
  */
 @ccclass('TurretPlacer')
@@ -136,42 +145,47 @@ export class TurretPlacer extends Component {
     }
     const gun = this.getComponent(TurretGun);
     if (!gun) return;
-    const nodes = gun.turrets;
-    if (!nodes.length) return;
+    const parked = this._parked(scene);
+    if (!parked.length) return;
     const plane = scene.getChildByName('Ground')?.getChildByName('Plane');
     if (!plane) return;
 
-    const seats: Seat[] = [];
-    let spanX = 0;
-    let spanZ = 0;
-    for (let i = 0; i < nodes.length; i++) {
-      const root = nodes[i];
-      const measured = measureTurretXZ(root);
-      if (!measured) continue;
-      spanX = Math.max(spanX, measured.spanX);
-      spanZ = Math.max(spanZ, measured.spanZ);
-      seats.push({ root, cx: measured.cx, cz: measured.cz });
-    }
-    if (!seats.length) return;
+    const first = parked[0];
+    first.active = true;
+    const measured = measureTurretXZ(first);
+    first.active = false;
+    if (!measured) return;
     const cam = scene.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
-    const side = squareCellSize(cam, spanX, spanZ);
+    const side = squareCellSize(cam, measured.spanX, measured.spanZ);
     const grid = BattleGrid.create(plane, side.x, side.z);
     if (!grid) return;
 
-    for (let i = 0; i < seats.length; i++) this._blockBody(grid, seats[i].cx, seats[i].cz);
-
-    const first = seats[0];
-    const template = instantiate(first.root);
+    const template = instantiate(first);
     template.name = '10000';
     template.active = false;
     scene.addChild(template);
     this._silence(template);
     this._remember('10000', template);
+    for (let i = 0; i < parked.length; i++) {
+      if (parked[i].isValid) parked[i].destroy();
+    }
     this._grid = grid;
     this._gun = gun;
     this._cam = cam;
     this._load10001(scene);
+    this._load10002(scene);
+    this._load10003(scene);
     this._loadPad(scene);
+  }
+
+  private _parked(scene: Node): Node[] {
+    const found: Node[] = [];
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const name = kids[i].name;
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003') found.push(kids[i]);
+    }
+    return found;
   }
 
   private _load10001(scene: Node): void {
@@ -189,6 +203,42 @@ export class TurretPlacer extends Component {
       this._silence(root);
       this._remember('10001', root);
       if (this._kind === '10001') this._makeGhost();
+    });
+  }
+
+  private _load10002(scene: Node): void {
+    if (this._packs.has('10002')) return;
+    assetManager.loadAny({ uuid: TURRET_10002 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10002 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10002';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10002', root);
+      if (this._kind === '10002') this._makeGhost();
+    });
+  }
+
+  private _load10003(scene: Node): void {
+    if (this._packs.has('10003')) return;
+    assetManager.loadAny({ uuid: TURRET_10003 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10003 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10003';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10003', root);
+      if (this._kind === '10003') this._makeGhost();
     });
   }
 
@@ -467,26 +517,6 @@ export class TurretPlacer extends Component {
     }
   }
 
-  /** Mark every square the existing turret body covers. The model stays where it is. */
-  private _blockBody(grid: BattleGrid, cx: number, cz: number): void {
-    const n = TURRET_10000_CELLS.n;
-    const m = TURRET_10000_CELLS.m;
-    const x0 = cx - grid.cellX * n * 0.5;
-    const z0 = cz - grid.cellZ * m * 0.5;
-    const x1 = cx + grid.cellX * n * 0.5;
-    const z1 = cz + grid.cellZ * m * 0.5;
-    const i0 = Math.floor((x0 - grid.x0) / grid.cellX);
-    const i1 = Math.floor((x1 - grid.x0 - 1e-3) / grid.cellX);
-    const j0 = Math.floor((z0 - grid.z0) / grid.cellZ);
-    const j1 = Math.floor((z1 - grid.z0 - 1e-3) / grid.cellZ);
-    for (let iz = j0; iz <= j1; iz++) {
-      for (let ix = i0; ix <= i1; ix++) {
-        if (!grid.free(ix, iz, 1, 1)) continue;
-        grid.take(ix, iz, 1, 1);
-      }
-    }
-  }
-
   private _buildBar(): void {
     if (this._buttons.size) return;
     const canvas = this.node.scene?.getChildByName('Canvas');
@@ -495,15 +525,15 @@ export class TurretPlacer extends Component {
     const height = canvasUi.contentSize.height;
     const y = -height * 0.5 + 12 + CARD_H * 0.5;
     const gap = 18;
-    const kinds: Kind[] = ['10000', '10001'];
+    const kinds: Kind[] = ['10000', '10001', '10002', '10003'];
     for (let i = 0; i < kinds.length; i++) {
       const kind = kinds[i];
-      const btn = new Node(kind === '10000' ? 'PlantLaser' : 'PlantGun');
+      const btn = new Node(kind === '10000' ? 'PlantLaser' : kind === '10001' ? 'PlantGun' : kind === '10002' ? 'PlantGun2' : 'PlantGun3');
       btn.layer = canvas.layer;
       canvas.addChild(btn);
       const ui = btn.addComponent(UITransform);
       ui.setContentSize(CARD_W, CARD_H);
-      const x = (i - 0.5) * (CARD_W + gap);
+      const x = (i - (kinds.length - 1) / 2) * (CARD_W + gap);
       btn.setPosition(x, y, 0);
       const sprite = btn.addComponent(Sprite);
       sprite.sizeMode = Sprite.SizeMode.CUSTOM;
@@ -516,8 +546,8 @@ export class TurretPlacer extends Component {
       button.transition = Button.Transition.NONE;
       btn.on(Button.EventType.CLICK, () => this._choose(kind), this);
       this._buttons.set(kind, { node: btn, sprite, idle: null, armed: null });
-      this._loadCard(kind, 'idle', PLANT_CARD[kind].idle);
-      this._loadCard(kind, 'armed', PLANT_CARD[kind].armed);
+      if (PLANT_CARD[kind].idle) this._loadCard(kind, 'idle', PLANT_CARD[kind].idle);
+      if (PLANT_CARD[kind].armed) this._loadCard(kind, 'armed', PLANT_CARD[kind].armed);
     }
     this._paintBar();
   }
@@ -554,6 +584,12 @@ export class TurretPlacer extends Component {
     else if (kind === '10001') {
       const scene = this.node.scene;
       if (scene) this._load10001(scene);
+    } else if (kind === '10002') {
+      const scene = this.node.scene;
+      if (scene) this._load10002(scene);
+    } else if (kind === '10003') {
+      const scene = this.node.scene;
+      if (scene) this._load10003(scene);
     }
     this._hideCursor();
   }

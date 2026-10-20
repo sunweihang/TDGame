@@ -1,0 +1,2708 @@
+{
+  "targetName": "Turret 10000",
+  "targetId": "turret-10000",
+  "schemaVersion": "2.1",
+  "terminologyProfile": {
+    "domain": "real-time procedural Three.js asset",
+    "geometryTerms": [
+      "silhouette",
+      "topology",
+      "primitive",
+      "bevel",
+      "chamfer",
+      "taper",
+      "bend",
+      "boolean cut",
+      "edge loop",
+      "surface normal",
+      "displacement"
+    ],
+    "materialTerms": [
+      "albedo",
+      "baseColor",
+      "roughness",
+      "metalness",
+      "normal map",
+      "bump map",
+      "ambient occlusion",
+      "cavity dirt",
+      "edge wear",
+      "clearcoat"
+    ],
+    "lightingTerms": [
+      "key light",
+      "fill light",
+      "rim light",
+      "HDRI/environment reflection",
+      "contact shadow"
+    ],
+    "descriptionRule": "Use measurable 3D graphics terms. Avoid vague words unless they are paired with concrete geometry/material/shader parameters."
+  },
+  "sourceImage": "d:\\Custom\\TD\\tools\\img2threejs-trial\\reference.png",
+  "referenceCamera": {
+    "solved": false,
+    "fovDegrees": 39.6,
+    "aspect": 1.0,
+    "orientation": {
+      "yaw": 40.0,
+      "pitch": 22.0,
+      "roll": 0.0
+    },
+    "positionHint": [
+      3.2,
+      1.6,
+      4.2
+    ],
+    "note": "Elevated three-quarter clay render. Camera was not solved for projection."
+  },
+  "suitability": "conditional",
+  "scores": {
+    "object_isolation": 3,
+    "silhouette_readability": 3,
+    "depth_inference": 2,
+    "primitive_decomposition": 3,
+    "material_procedurality": 2,
+    "occlusion_risk": 2,
+    "interaction_fit": 3
+  },
+  "preSpecAssessment": {
+    "objectClass": {
+      "primaryType": "sci-fi laser turret",
+      "primaryDomain": "object",
+      "formLanguage": [
+        "geometric",
+        "hard-surface",
+        "chamfered"
+      ],
+      "structureKind": [
+        "articulated assembly",
+        "stacked modules"
+      ],
+      "motionPotential": [
+        "yaw at neck",
+        "pitch at head"
+      ],
+      "materialFamilies": [
+        "painted metal",
+        "emissive accent"
+      ],
+      "notes": "Project turret 10000. One clay view. Hidden side mirrored. Colors inferred."
+    },
+    "complexity": {
+      "tier": "moderate",
+      "scores": {
+        "silhouetteComplexity": 2,
+        "componentCount": 2,
+        "hierarchyDepth": 2,
+        "repetitionDensity": 1,
+        "materialLayerCount": 2,
+        "localDetailDensity": 2,
+        "occlusionRisk": 2,
+        "actionReadinessNeed": 2
+      },
+      "estimatedCounts": {
+        "macroComponents": 4,
+        "mesoComponents": 7,
+        "microFeatureGroups": 4,
+        "materialLayers": 3,
+        "repetitionSystems": 1
+      },
+      "reasoning": [
+        "Four silhouette masses: base, neck, head, barrel.",
+        "Meso: muzzle collar, two side housings, four feet.",
+        "One repetition: the four feet.",
+        "Three materials: hull paint, recessed panel, cyan accent."
+      ]
+    },
+    "specDepthDecision": {
+      "requiredDepth": "moderate",
+      "minimumComponentLevels": [
+        "macro",
+        "meso",
+        "micro"
+      ],
+      "needsRepetitionSystems": true,
+      "needsMaterialLocalOverrides": true,
+      "needsMultipleReviewViews": true,
+      "needsActionReadyHierarchy": true,
+      "rationale": "The silhouette is a few rigid masses, with a repeated foot set and panel/emissive overrides."
+    },
+    "unknownsToResolveBeforeImplementation": [],
+    "detailInventory": {
+      "scanMethod": "grid-3x3",
+      "targetMinDetails": 8,
+      "note": "Identity details from the clay silhouette plus inferred cyan accent.",
+      "details": [
+        {
+          "id": "base-chamfer-detail",
+          "description": "Chamfered octagonal base plan.",
+          "priority": "critical",
+          "componentRef": "baseHull",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.75,
+          "realization": "geometry",
+          "kind": "bevel",
+          "mapsTo": {
+            "ref": "base-chamfer"
+          }
+        },
+        {
+          "id": "neck-ring-detail",
+          "description": "Cylindrical neck at the yaw line.",
+          "priority": "critical",
+          "componentRef": "neck",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.7,
+          "realization": "geometry",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "neck"
+          }
+        },
+        {
+          "id": "head-mass-detail",
+          "description": "Faceted head housing.",
+          "priority": "critical",
+          "componentRef": "headHousing",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.7,
+          "realization": "geometry",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "headHousing"
+          }
+        },
+        {
+          "id": "barrel-axis-detail",
+          "description": "Barrel along +Z.",
+          "priority": "critical",
+          "componentRef": "barrel",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.7,
+          "realization": "geometry",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "barrel"
+          }
+        },
+        {
+          "id": "muzzle-step-detail",
+          "description": "Larger collar at the muzzle.",
+          "priority": "important",
+          "componentRef": "muzzleCollar",
+          "materialRef": "cyanGlow",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.6,
+          "realization": "geometry",
+          "kind": "ridge",
+          "mapsTo": {
+            "ref": "muzzleCollar"
+          }
+        },
+        {
+          "id": "foot-set-detail",
+          "description": "Four corner feet.",
+          "priority": "important",
+          "componentRef": "foot-px-pz",
+          "materialRef": "darkPanel",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.6,
+          "realization": "geometry",
+          "kind": "contour",
+          "mapsTo": {
+            "ref": "foot-px-pz"
+          }
+        },
+        {
+          "id": "panel-seam-detail",
+          "description": "Panel seam darkening on the hull.",
+          "priority": "important",
+          "componentRef": "baseHull",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.5,
+          "realization": "material",
+          "kind": "seam",
+          "mapsTo": {
+            "ref": "panel-seam-darkening"
+          }
+        },
+        {
+          "id": "cyan-band-detail",
+          "description": "Cyan emissive band. Inferred from the atlas, absent in the clay.",
+          "priority": "important",
+          "componentRef": "muzzleCollar",
+          "materialRef": "cyanGlow",
+          "evidenceRef": "turret-basecolor-atlas",
+          "confidence": 0.45,
+          "realization": "material",
+          "kind": "emissive",
+          "mapsTo": {
+            "ref": "cyan-band"
+          }
+        },
+        {
+          "id": "side-groove-detail",
+          "description": "Groove on the head side.",
+          "priority": "important",
+          "componentRef": "headHousing",
+          "materialRef": "hullPaint",
+          "evidenceRef": "clay-three-quarter",
+          "confidence": 0.45,
+          "realization": "material",
+          "kind": "groove",
+          "mapsTo": {
+            "ref": "head-groove"
+          }
+        }
+      ]
+    },
+    "anatomy": {
+      "applies": false
+    }
+  },
+  "qualityContract": {
+    "qualityBar": "moderate",
+    "definitionOfDone": [
+      "Base on Y=0, muzzle toward +Z, yaw ring near Y=1.51, envelope near 4.07 x 4.00 x 4.95 m.",
+      "Silhouette reads as base, neck, head, and barrel from the three-quarter view.",
+      "Hidden faces stay marked as mirrored inference."
+    ],
+    "minimumSpecDepth": {
+      "macroComponents": 4,
+      "mesoComponents": 4,
+      "microFeatureGroups": 4,
+      "materialLayers": 3,
+      "repetitionSystems": 1,
+      "reviewViewpoints": 3
+    },
+    "featureGroups": [
+      {
+        "id": "silhouette",
+        "name": "Stacked turret silhouette",
+        "required": true,
+        "qualityCriteria": [
+          "Base, neck, head, and barrel occupy the measured envelope."
+        ],
+        "evidenceRefs": [
+          "clay-three-quarter"
+        ],
+        "failureModes": [
+          "A single box with no barrel."
+        ]
+      },
+      {
+        "id": "yaw-pivot",
+        "name": "Neck yaw pivot",
+        "required": true,
+        "qualityCriteria": [
+          "A cylindrical neck ends at about Y=1.51 and exposes a yaw socket."
+        ],
+        "evidenceRefs": [
+          "clay-three-quarter"
+        ],
+        "failureModes": [
+          "Head welded to the base with no neck."
+        ]
+      },
+      {
+        "id": "barrel-axis",
+        "name": "Barrel axis",
+        "required": true,
+        "qualityCriteria": [
+          "Barrel centerline is +Z and clears the head front."
+        ],
+        "evidenceRefs": [
+          "clay-three-quarter"
+        ],
+        "failureModes": [
+          "Barrel points up or sideways."
+        ]
+      }
+    ],
+    "visualDeltaChecks": [
+      "silhouette delta",
+      "barrel axis delta",
+      "neck height delta"
+    ],
+    "antiShallowSpecRules": [
+      "Do not treat the clay gray as the hull albedo."
+    ],
+    "mustNotDo": [
+      "Do not claim the unseen back is measured."
+    ]
+  },
+  "qualityTargets": {
+    "targetFidelity": 0.65,
+    "mustMatch": [
+      "macro silhouette",
+      "yaw height",
+      "barrel axis"
+    ],
+    "niceToHave": [
+      "panel grooves",
+      "exact chamfer plan"
+    ],
+    "fpsTarget": 60,
+    "reviewViewpoints": [
+      "front-three-quarter",
+      "front",
+      "side"
+    ]
+  },
+  "selfCorrectLoop": {
+    "enabled": true,
+    "visualAcceptance": {
+      "reviewer": "ai-vision",
+      "threshold": 0.7,
+      "comparisonArtifactRequired": true,
+      "layerScoresRequired": true,
+      "codePixelDiffIsAcceptanceAuthority": false,
+      "scoringRule": "AI vision must inspect a side-by-side reference/render sheet and score the current pass from 0 to 1. Pixel-diff code may assist diagnostics but cannot approve a pass.",
+      "requiredLayerScores": [
+        "silhouetteProportion",
+        "componentStructure",
+        "formDetail",
+        "materialSurface",
+        "lightingCamera"
+      ],
+      "featureReviewPolicy": {
+        "enabled": true,
+        "reviewUnit": "semantic-subsystem",
+        "maxCriticalFeaturesPerPass": 5,
+        "maxImportantFeaturesPerPass": 3,
+        "criticalDefaultThreshold": 0.8,
+        "importantAverageThreshold": 0.65,
+        "adaptiveEscalation": true,
+        "singleImagePairOnly": true,
+        "selectionRule": "Choose only the most visually salient, identity-defining, user-prioritized, or high-risk semantic systems. Group repeated parts instead of reviewing every mesh. AI vision scores every selected feature from the same full reference/render pair."
+      }
+    },
+    "reviewAfterPasses": [
+      "blockout",
+      "structural-pass",
+      "form-refinement",
+      "material-pass",
+      "surface-pass",
+      "lighting-pass",
+      "interaction-pass",
+      "optimization-pass"
+    ],
+    "allowedActions": [
+      "continue",
+      "refine-spec",
+      "refine-code",
+      "request-input",
+      "stop"
+    ],
+    "specRefineTriggers": [
+      "missing component",
+      "wrong primitive family",
+      "wrong proportions",
+      "material layer under-specified",
+      "local feature not traceable to viewEvidence",
+      "reference ambiguity discovered during implementation"
+    ],
+    "codeRefineTriggers": [
+      "spec is adequate but generated geometry/material does not match",
+      "browser render differs from reference",
+      "performance budget exceeded",
+      "lighting hides geometry or material response"
+    ],
+    "stopCriteria": [
+      "target fidelity reached or user accepts current approximation",
+      "remaining gaps require new reference images or manual art"
+    ],
+    "screenshotPolicy": {
+      "requiredForPasses": [
+        "blockout",
+        "structural-pass",
+        "form-refinement",
+        "material-pass",
+        "surface-pass",
+        "lighting-pass",
+        "interaction-pass"
+      ],
+      "preferredCapture": "in-app-browser-screenshot",
+      "fallbackCapture": "user-supplied-screenshot-path",
+      "minimumEvidence": "Each visual pass needs a reference image, rendered screenshot, side-by-side comparison sheet, AI vision score, layer scores, and critique before choosing continue.",
+      "reviewPairRule": "Compare the same camera/viewpoint whenever possible; do not judge a front reference against a random render angle.",
+      "acceptanceAuthority": "AI vision review of the comparison sheet. Code-generated pixel similarity is not sufficient evidence."
+    }
+  },
+  "featureReviewTargets": [
+    {
+      "id": "stacked-silhouette",
+      "name": "Base neck head barrel stack",
+      "tier": "critical",
+      "passIds": [
+        "blockout",
+        "structural-pass"
+      ],
+      "minimumScore": 0.7,
+      "mustPass": true,
+      "componentRefs": [
+        "baseHull",
+        "neck",
+        "headHousing",
+        "barrel"
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ]
+    },
+    {
+      "id": "barrel-forward",
+      "name": "Barrel points +Z",
+      "tier": "critical",
+      "passIds": [
+        "blockout"
+      ],
+      "minimumScore": 0.7,
+      "mustPass": true,
+      "componentRefs": [
+        "barrel"
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ]
+    },
+    {
+      "id": "feet",
+      "name": "Four corner feet",
+      "tier": "important",
+      "passIds": [
+        "structural-pass"
+      ],
+      "minimumScore": 0.6,
+      "mustPass": false,
+      "componentRefs": [
+        "foot-px-pz",
+        "foot-nx-pz",
+        "foot-px-nz",
+        "foot-nx-nz"
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ]
+    }
+  ],
+  "sculptPipeline": {
+    "passGateMode": "locked-sequential",
+    "passOrder": [
+      "blockout",
+      "structural-pass",
+      "form-refinement",
+      "material-pass",
+      "surface-pass",
+      "lighting-pass",
+      "interaction-pass",
+      "optimization-pass"
+    ],
+    "currentPass": "blockout",
+    "completedPasses": [],
+    "lastCompletedPass": "",
+    "blockedReason": "blockout requires a render review before the next pass",
+    "nextRequiredEvidence": [
+      "blockout render",
+      "comparison sheet"
+    ]
+  },
+  "lookDevTargets": {
+    "qualityPriority": "reference-fidelity",
+    "materialPass": {
+      "albedoPaletteRequired": true,
+      "roughnessVariationRequired": true,
+      "normalOrBumpRequired": true,
+      "localOverridesRequired": true,
+      "minimumTextureResolution": 1024,
+      "preferredTextureResolution": 2048,
+      "independentMapChannels": [
+        "albedo",
+        "roughness",
+        "height",
+        "normal",
+        "ambient-occlusion"
+      ],
+      "requiredSurfaceFrequencyBands": [
+        "macro",
+        "meso",
+        "micro"
+      ],
+      "geometryReliefRequiredWhenSilhouetteAffected": true,
+      "referencePbrExtraction": {
+        "requiredWhenSourceImagePresent": false,
+        "targetThreshold": 0.7,
+        "stopOnLowConfidence": true,
+        "script": "forge/stage1_intake/extract_pbr_evidence.py",
+        "acceptedLimitation": "single-image extraction is reference-derived inference, not exact photogrammetry",
+        "skipReason": "Clay reference has no albedo. Solid paint scalars are inferred. extract_pbr_evidence would only recover gray."
+      },
+      "mustAvoid": [
+        "single flat albedo per material",
+        "uniform roughness",
+        "albedo texture reused as roughness/height/normal/AO",
+        "single-frequency random noise",
+        "plastic-looking smooth bark, stone, cloth, foliage, or aged material",
+        "local color/detail described only in prose without material masks",
+        "claiming exact PBR recovery when confidence is below the target threshold"
+      ]
+    },
+    "lightingPass": {
+      "requiredTerms": [
+        "key light",
+        "fill light",
+        "rim or environment light",
+        "exposure",
+        "tone mapping",
+        "background",
+        "contact shadow"
+      ],
+      "mustAvoid": [
+        "ambient-only lighting",
+        "flat value range",
+        "missing contact shadow",
+        "reference lighting copied without separating material readability"
+      ]
+    },
+    "screenshotReview": [
+      "Compare albedo palette and local color zones.",
+      "Compare roughness/normal/bump response under light.",
+      "Compare cavity dirt, edge wear, stains, moss, scratches, or other local masks.",
+      "Compare key/fill/rim structure, exposure, tone mapping, background, and contact shadows.",
+      "Capture a neutral-light render to verify material readability without reference lighting.",
+      "Capture a grazing-light close-up to expose flat normals, uniform roughness, tiling, and plastic highlights.",
+      "Capture a reference-matched render from the same camera framing as the source."
+    ]
+  },
+  "actionReadiness": {
+    "contract": "Every macro/meso component should be generated as a stable named Object3D pivot node with a mesh child, action metadata, optional sockets, collider proxy, and destruction metadata.",
+    "defaultRigType": "action-ready-static-rig",
+    "rootMotionNode": "root",
+    "requiredComponentFields": [
+      "id",
+      "parent",
+      "transform",
+      "attachment for child appendages, connectors, limbs, tubes, handles, legs, horns, wings, branches, or cables",
+      "actionProfile.animationRole",
+      "actionProfile.pivot",
+      "actionProfile.collider",
+      "actionProfile.destruction"
+    ],
+    "transformChannels": [
+      "translate",
+      "rotate",
+      "scale",
+      "bend",
+      "twist",
+      "detach",
+      "visibility",
+      "material-state"
+    ],
+    "authoringRules": [
+      "Do not collapse independently movable parts into one mesh.",
+      "Put transforms on component pivot groups, not only on raw meshes.",
+      "For attached child parts, put the pivot at the semantic root/socket and build visible geometry from localStart to localEnd.",
+      "Represent hinge, socket, detachable, and breakable intent even when no animation is implemented yet.",
+      "Use simplified collider proxies for runtime physics instead of visual mesh colliders by default."
+    ],
+    "destructionPolicy": {
+      "defaultBreakable": false,
+      "fractureGroupNaming": "Use stable semantic names such as body-shell, left-hinge, glass-panel, branch-segment.",
+      "debrisStrategy": "Prefer detachable component groups and a small number of procedural fragments over random mesh explosion."
+    }
+  },
+  "assumptions": [
+    "File bounds scaled so height is 4.00 m, matching turret 10000.",
+    "Unseen side is an X mirror.",
+    "Hull color is inferred from the basecolor atlas because the reference is clay."
+  ],
+  "coordinateFrame": {
+    "front": "+Z",
+    "up": "+Y",
+    "scaleReference": "meters, height 4.00"
+  },
+  "silhouette": {
+    "boundingShape": "stacked chamfered slab, cylinder neck, box head, cylinder barrel",
+    "aspectRatios": [
+      "width:height ~ 4.07:4.00",
+      "width:depth ~ 4.07:4.95"
+    ],
+    "symmetry": "bilateral across X",
+    "dominantCurves": [
+      "base chamfer",
+      "neck cylinder",
+      "barrel cylinder"
+    ],
+    "negativeSpaces": [
+      "gap under the head beside the neck",
+      "gap between the feet"
+    ],
+    "landmarks": [
+      "yaw ring at Y=1.51",
+      "muzzle at +Z"
+    ]
+  },
+  "viewEvidence": [
+    {
+      "id": "clay-three-quarter",
+      "view": "primary",
+      "imageRegion": {
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1.0,
+        "height": 1.0,
+        "units": "normalized"
+      },
+      "observations": [
+        "Isolated turret on a dark ground, clay shading.",
+        "Base on the ground, mass stacked upward, a long barrel."
+      ],
+      "confidence": 0.7
+    }
+  ],
+  "componentTree": [
+    {
+      "id": "baseHull",
+      "name": "Octagonal base",
+      "level": "macro",
+      "role": "body",
+      "importance": 0.9,
+      "confidence": 0.7,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              1.5891,
+              0.6582
+            ],
+            [
+              0.6582,
+              1.5891
+            ],
+            [
+              -0.6582,
+              1.5891
+            ],
+            [
+              -1.5891,
+              0.6582
+            ],
+            [
+              -1.5891,
+              -0.6582
+            ],
+            [
+              -0.6582,
+              -1.5891
+            ],
+            [
+              0.6582,
+              -1.5891
+            ],
+            [
+              1.5891,
+              -0.6582
+            ]
+          ],
+          "depth": 0.5
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          0.2,
+          -0.15
+        ],
+        "rotation": [
+          -1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "hullPaint",
+      "materialLayers": [
+        "hullPaint"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "base-chamfer",
+          "description": "Eight-sided base plan.",
+          "confidence": 0.75,
+          "level": "macro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "baseDeck",
+      "name": "Base deck",
+      "level": "macro",
+      "role": "body",
+      "importance": 0.9,
+      "confidence": 0.7,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              1.1826,
+              0.4898
+            ],
+            [
+              0.4898,
+              1.1826
+            ],
+            [
+              -0.4898,
+              1.1826
+            ],
+            [
+              -1.1826,
+              0.4898
+            ],
+            [
+              -1.1826,
+              -0.4898
+            ],
+            [
+              -0.4898,
+              -1.1826
+            ],
+            [
+              0.4898,
+              -1.1826
+            ],
+            [
+              1.1826,
+              -0.4898
+            ]
+          ],
+          "depth": 0.16
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          0.7,
+          -0.15
+        ],
+        "rotation": [
+          -1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "base-panel-seam",
+          "description": "Inset deck on the base.",
+          "confidence": 0.6,
+          "level": "micro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "neck",
+      "name": "Yaw neck",
+      "level": "macro",
+      "role": "collar",
+      "importance": 0.9,
+      "confidence": 0.7,
+      "primitive": "lathe",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "latheProfile": {
+          "points": [
+            [
+              0.68,
+              -0.2
+            ],
+            [
+              0.6,
+              -0.05
+            ],
+            [
+              0.5,
+              0.08
+            ],
+            [
+              0.54,
+              0.18
+            ]
+          ],
+          "segments": 28
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          1.33,
+          0.02
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ]
+      },
+      "material": "hullPaint",
+      "materialLayers": [
+        "hullPaint"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "neck-ring",
+          "description": "Turned neck under the yaw line.",
+          "confidence": 0.7,
+          "level": "macro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "yaw",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0.18,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": true,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [
+          {
+            "id": "yaw",
+            "localPosition": [
+              0,
+              0.18,
+              0
+            ],
+            "axis": [
+              0,
+              1,
+              0
+            ]
+          }
+        ],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "headHousing",
+      "name": "Head housing",
+      "level": "macro",
+      "role": "housing",
+      "importance": 0.9,
+      "confidence": 0.7,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              -1.05,
+              -0.9
+            ],
+            [
+              -0.7,
+              -1.0
+            ],
+            [
+              0.7,
+              -1.0
+            ],
+            [
+              1.05,
+              -0.9
+            ],
+            [
+              1.15,
+              -0.4
+            ],
+            [
+              1.15,
+              0.55
+            ],
+            [
+              0.85,
+              0.95
+            ],
+            [
+              -0.85,
+              0.95
+            ],
+            [
+              -1.15,
+              0.55
+            ],
+            [
+              -1.15,
+              -0.4
+            ]
+          ],
+          "depth": 1.05
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          1.58,
+          -0.05
+        ],
+        "rotation": [
+          -1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "hullPaint",
+      "materialLayers": [
+        "hullPaint"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "head-facet",
+          "description": "Chamfered housing plan.",
+          "confidence": 0.7,
+          "level": "macro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        },
+        {
+          "id": "head-groove",
+          "description": "Side step in the housing plan.",
+          "confidence": 0.5,
+          "level": "micro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "pitch",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            -0.7,
+            0
+          ],
+          "axis": [
+            1,
+            0,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": true,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [
+          {
+            "id": "pitch",
+            "localPosition": [
+              0,
+              -0.7,
+              0
+            ],
+            "axis": [
+              1,
+              0,
+              0
+            ]
+          }
+        ],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "barrel",
+      "name": "Stepped barrel",
+      "level": "macro",
+      "role": "barrel",
+      "importance": 0.9,
+      "confidence": 0.7,
+      "primitive": "lathe",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "latheProfile": {
+          "points": [
+            [
+              0.46,
+              -0.9
+            ],
+            [
+              0.44,
+              -0.65
+            ],
+            [
+              0.32,
+              -0.48
+            ],
+            [
+              0.3,
+              0.35
+            ],
+            [
+              0.28,
+              0.5
+            ],
+            [
+              0.4,
+              0.72
+            ],
+            [
+              0.36,
+              0.9
+            ]
+          ],
+          "segments": 28
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          2.15,
+          1.75
+        ],
+        "rotation": [
+          1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "hullPaint",
+      "materialLayers": [
+        "hullPaint"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "muzzle-bore",
+          "description": "Stepped barrel along +Z.",
+          "confidence": 0.7,
+          "level": "macro",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "muzzleCollar",
+      "name": "Muzzle glow ring",
+      "level": "meso",
+      "role": "collar",
+      "importance": 0.55,
+      "confidence": 0.7,
+      "primitive": "lathe",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "latheProfile": {
+          "points": [
+            [
+              0.5,
+              -0.05
+            ],
+            [
+              0.58,
+              -0.01
+            ],
+            [
+              0.58,
+              0.04
+            ],
+            [
+              0.5,
+              0.08
+            ]
+          ],
+          "segments": 28
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          0,
+          2.15,
+          2.58
+        ],
+        "rotation": [
+          1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "cyanGlow",
+      "materialLayers": [
+        "cyanGlow"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "collar-step",
+          "description": "Emissive step at the muzzle.",
+          "confidence": 0.55,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "sidePodPos",
+      "name": "Side housing +X",
+      "level": "meso",
+      "role": "housing",
+      "importance": 0.55,
+      "confidence": 0.7,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              0.2425,
+              0.14
+            ],
+            [
+              0.0,
+              0.28
+            ],
+            [
+              -0.2425,
+              0.14
+            ],
+            [
+              -0.2425,
+              -0.14
+            ],
+            [
+              -0.0,
+              -0.28
+            ],
+            [
+              0.2425,
+              -0.14
+            ]
+          ],
+          "depth": 0.7
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          1.25,
+          1.85,
+          0.1
+        ],
+        "rotation": [
+          -1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "pod-pos-face",
+          "description": "Side block on +X.",
+          "confidence": 0.5,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "sidePodNeg",
+      "name": "Side housing -X",
+      "level": "meso",
+      "role": "housing",
+      "importance": 0.55,
+      "confidence": 0.7,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              0.2425,
+              0.14
+            ],
+            [
+              0.0,
+              0.28
+            ],
+            [
+              -0.2425,
+              0.14
+            ],
+            [
+              -0.2425,
+              -0.14
+            ],
+            [
+              -0.0,
+              -0.28
+            ],
+            [
+              0.2425,
+              -0.14
+            ]
+          ],
+          "depth": 0.7
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.7
+      },
+      "transform": {
+        "position": [
+          -1.25,
+          1.85,
+          0.1
+        ],
+        "rotation": [
+          -1.570796,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "pod-neg-face",
+          "description": "Side block on -X, mirrored in X.",
+          "confidence": 0.45,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "foot-px-pz",
+      "name": "Corner foot",
+      "level": "meso",
+      "role": "foot",
+      "importance": 0.55,
+      "confidence": 0.6,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              -0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              0.28
+            ],
+            [
+              -0.22,
+              0.28
+            ]
+          ],
+          "depth": 0.12
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.6
+      },
+      "transform": {
+        "position": [
+          1.45,
+          0,
+          1.05
+        ],
+        "rotation": [
+          -1.5707963267948966,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "foot-px-pz-pad",
+          "description": "Small pad under the base corner.",
+          "confidence": 0.6,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "foot-nx-pz",
+      "name": "Corner foot",
+      "level": "meso",
+      "role": "foot",
+      "importance": 0.55,
+      "confidence": 0.6,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              -0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              0.28
+            ],
+            [
+              -0.22,
+              0.28
+            ]
+          ],
+          "depth": 0.12
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.6
+      },
+      "transform": {
+        "position": [
+          -1.45,
+          0,
+          1.05
+        ],
+        "rotation": [
+          -1.5707963267948966,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "foot-nx-pz-pad",
+          "description": "Small pad under the base corner.",
+          "confidence": 0.6,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "foot-px-nz",
+      "name": "Corner foot",
+      "level": "meso",
+      "role": "foot",
+      "importance": 0.55,
+      "confidence": 0.6,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              -0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              0.28
+            ],
+            [
+              -0.22,
+              0.28
+            ]
+          ],
+          "depth": 0.12
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.6
+      },
+      "transform": {
+        "position": [
+          1.45,
+          0,
+          -1.45
+        ],
+        "rotation": [
+          -1.5707963267948966,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "foot-px-nz-pad",
+          "description": "Small pad under the base corner.",
+          "confidence": 0.6,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    },
+    {
+      "id": "foot-nx-nz",
+      "name": "Corner foot",
+      "level": "meso",
+      "role": "foot",
+      "importance": 0.55,
+      "confidence": 0.6,
+      "primitive": "extrude",
+      "topologyClass": "assembled-solid",
+      "topologyRationale": "Hard-surface plate or turned solid. The plan or profile is authored, not a unit box.",
+      "geometryDescriptor": {
+        "profile2D": {
+          "points": [
+            [
+              -0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              -0.28
+            ],
+            [
+              0.22,
+              0.28
+            ],
+            [
+              -0.22,
+              0.28
+            ]
+          ],
+          "depth": 0.12
+        },
+        "uvStrategy": "generated procedural coordinates",
+        "normalStrategy": "vertex normals from generated geometry"
+      },
+      "parent": null,
+      "attachment": null,
+      "dimensions": {
+        "width": 1,
+        "height": 1,
+        "depth": 1,
+        "units": "meters",
+        "confidence": 0.6
+      },
+      "transform": {
+        "position": [
+          -1.45,
+          0,
+          -1.45
+        ],
+        "rotation": [
+          -1.5707963267948966,
+          0,
+          0
+        ]
+      },
+      "material": "darkPanel",
+      "materialLayers": [
+        "darkPanel"
+      ],
+      "colorMaterialRecipe": {
+        "dominantAlbedo": "rgba(142, 164, 182, 1.0)",
+        "secondaryAlbedo": "rgba(61, 76, 88, 1.0)",
+        "materialClass": "metal",
+        "materialClassConfidence": 0.6,
+        "evidence": [
+          "clay-three-quarter"
+        ],
+        "samplingNotes": "Albedo from the textured turret render. Profile sizes are in meters."
+      },
+      "localFeatures": [
+        {
+          "id": "foot-nx-nz-pad",
+          "description": "Small pad under the base corner.",
+          "confidence": 0.6,
+          "level": "meso",
+          "evidence": [
+            "clay-three-quarter"
+          ]
+        }
+      ],
+      "evidenceRefs": [
+        "clay-three-quarter"
+      ],
+      "actionProfile": {
+        "animationRole": "static",
+        "pivot": {
+          "mode": "explicit",
+          "localPosition": [
+            0,
+            0,
+            0
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "confidence": 0.7
+        },
+        "transformChannels": {
+          "translate": true,
+          "rotate": false,
+          "scale": false,
+          "bend": false,
+          "twist": false,
+          "detach": false,
+          "visibility": true,
+          "materialState": false
+        },
+        "sockets": [],
+        "collider": {
+          "type": "box",
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "isTrigger": false
+        },
+        "destruction": {
+          "fractureGroup": "hull",
+          "seamRefs": [],
+          "detachableFragments": []
+        }
+      }
+    }
+  ],
+  "materials": [
+    {
+      "id": "hullPaint",
+      "name": "Machined hull",
+      "type": "standard",
+      "shaderModel": "MeshPhysicalMaterial",
+      "baseColor": "#8ea4b6",
+      "color": "#8ea4b6",
+      "albedo": {
+        "dominant": "#8ea4b6",
+        "secondary": [
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "samplingNotes": "Light blue-gray painted metal read from the textured hero render of turret 10000."
+      },
+      "colorVariation": {
+        "palette": [
+          "#8ea4b6",
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "pattern": "panel-breaks",
+        "amplitude": 0.06,
+        "heightCorrelation": 0.1
+      },
+      "roughness": {
+        "base": 0.36,
+        "variation": 0.08
+      },
+      "metalness": {
+        "base": 0.62,
+        "variation": 0.04
+      },
+      "clearcoat": 0.4,
+      "clearcoatRoughness": 0.3,
+      "localOverrides": [
+        {
+          "id": "panel-seam-darkening",
+          "kind": "seam",
+          "description": "Cavity darkening along the head panel breaks.",
+          "roughness": 0.7
+        }
+      ],
+      "textureless": {
+        "declared": true,
+        "evidence": [
+          "hero.png panel breaks are geometric, not grain"
+        ]
+      }
+    },
+    {
+      "id": "darkPanel",
+      "name": "Recessed panel",
+      "type": "standard",
+      "shaderModel": "MeshPhysicalMaterial",
+      "baseColor": "#3d4c58",
+      "color": "#3d4c58",
+      "albedo": {
+        "dominant": "#3d4c58",
+        "secondary": [
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "samplingNotes": "Light blue-gray painted metal read from the textured hero render of turret 10000."
+      },
+      "colorVariation": {
+        "palette": [
+          "#3d4c58",
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "pattern": "panel-breaks",
+        "amplitude": 0.06,
+        "heightCorrelation": 0.1
+      },
+      "roughness": {
+        "base": 0.5,
+        "variation": 0.08
+      },
+      "metalness": {
+        "base": 0.45,
+        "variation": 0.04
+      },
+      "clearcoat": 0.4,
+      "clearcoatRoughness": 0.3,
+      "localOverrides": [],
+      "textureless": {
+        "declared": true,
+        "evidence": [
+          "hero.png panel breaks are geometric, not grain"
+        ]
+      }
+    },
+    {
+      "id": "cyanGlow",
+      "name": "Cyan emissive accent",
+      "type": "standard",
+      "shaderModel": "MeshPhysicalMaterial",
+      "baseColor": "#14343c",
+      "color": "#14343c",
+      "albedo": {
+        "dominant": "#14343c",
+        "secondary": [
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "samplingNotes": "Light blue-gray painted metal read from the textured hero render of turret 10000."
+      },
+      "colorVariation": {
+        "palette": [
+          "#14343c",
+          "#c5d4e0",
+          "#3d4c58"
+        ],
+        "pattern": "panel-breaks",
+        "amplitude": 0.06,
+        "heightCorrelation": 0.1
+      },
+      "roughness": {
+        "base": 0.28,
+        "variation": 0.08
+      },
+      "metalness": {
+        "base": 0.1,
+        "variation": 0.04
+      },
+      "clearcoat": 0.15,
+      "clearcoatRoughness": 0.3,
+      "localOverrides": [
+        {
+          "id": "cyan-band",
+          "kind": "emissive",
+          "description": "Cyan band on the barrel sleeve, inferred from the basecolor atlas.",
+          "roughness": 0.22
+        }
+      ],
+      "textureless": {
+        "declared": true,
+        "evidence": [
+          "hero.png panel breaks are geometric, not grain"
+        ]
+      },
+      "emissive": "#3ad7ff",
+      "emissiveIntensity": 2.2
+    }
+  ],
+  "repetitionSystems": [
+    {
+      "id": "cornerFeet",
+      "kind": "explicit-set",
+      "level": "meso",
+      "count": 4,
+      "elementComponentIds": [
+        "foot-px-pz",
+        "foot-nx-pz",
+        "foot-px-nz",
+        "foot-nx-nz"
+      ],
+      "target": "foot",
+      "parent": "root",
+      "realization": "Four foot meshes are authored. This system records the repetition and does not emit a second cluster.",
+      "evidence": [
+        "clay-three-quarter"
+      ],
+      "confidence": 0.6,
+      "buildsGeometry": true,
+      "instances": 4,
+      "placement": {
+        "mode": "explicit",
+        "axis": [
+          0,
+          1,
+          0
+        ],
+        "radius": 0
+      }
+    }
+  ],
+  "buildPasses": [
+    {
+      "id": "blockout",
+      "goal": "Base, neck, head, barrel masses.",
+      "componentRefs": [
+        "baseHull",
+        "baseDeck",
+        "neck",
+        "headHousing",
+        "barrel",
+        "muzzleCollar",
+        "sidePodPos",
+        "sidePodNeg",
+        "foot-px-pz",
+        "foot-nx-pz",
+        "foot-px-nz",
+        "foot-nx-nz"
+      ],
+      "acceptance": [
+        "silhouette reads as a turret"
+      ]
+    },
+    {
+      "id": "structural-pass",
+      "goal": "Feet, collar, side housings.",
+      "componentRefs": [
+        "foot-px-pz",
+        "foot-nx-pz",
+        "foot-px-nz",
+        "foot-nx-nz",
+        "muzzleCollar",
+        "sidePodPos",
+        "sidePodNeg"
+      ],
+      "acceptance": [
+        "feet sit on Y=0"
+      ]
+    },
+    {
+      "id": "form-refinement",
+      "goal": "Chamfer and bore read.",
+      "componentRefs": [
+        "baseHull",
+        "barrel"
+      ],
+      "acceptance": [
+        "base plan is not a sharp cube"
+      ]
+    },
+    {
+      "id": "material-pass",
+      "goal": "Hull, recess, cyan accent.",
+      "componentRefs": [
+        "baseHull",
+        "muzzleCollar"
+      ],
+      "acceptance": [
+        "three materials are distinct"
+      ]
+    },
+    {
+      "id": "surface-pass",
+      "goal": "Panel seam darkening.",
+      "componentRefs": [
+        "headHousing"
+      ],
+      "acceptance": [
+        "seam override exists"
+      ]
+    },
+    {
+      "id": "lighting-pass",
+      "goal": "Key, fill, contact shadow.",
+      "componentRefs": [
+        "baseHull"
+      ],
+      "acceptance": [
+        "ground contact is visible"
+      ]
+    },
+    {
+      "id": "interaction-pass",
+      "goal": "Yaw and pitch sockets.",
+      "componentRefs": [
+        "neck",
+        "headHousing"
+      ],
+      "acceptance": [
+        "sockets exist"
+      ]
+    },
+    {
+      "id": "optimization-pass",
+      "goal": "Stay inside the triangle budget.",
+      "componentRefs": [
+        "baseHull"
+      ],
+      "acceptance": [
+        "budget recorded"
+      ]
+    }
+  ],
+  "visualEvidence": [],
+  "reviewHistory": [],
+  "lodPlan": [
+    {
+      "tier": "near",
+      "distance": 0,
+      "strategy": "full component tree and material layers"
+    },
+    {
+      "tier": "far",
+      "distance": 30,
+      "strategy": "merge static components and reduce local feature geometry"
+    }
+  ],
+  "performanceBudget": {
+    "qualityPriority": "real-time",
+    "targetTriangles": 5000,
+    "maxDrawCalls": 20,
+    "textureSize": 1024,
+    "fpsTarget": 60,
+    "optimizationPolicy": "low tessellation tier"
+  },
+  "lightingFromPhoto": [
+    "key light from the upper front-left of the clay render",
+    "fill light from the opposite side, lower intensity",
+    "rim light on the barrel silhouette",
+    "exposure about 1.0 with ACES filmic tone mapping",
+    "contact shadow under the base and feet"
+  ],
+  "proceduralStrategy": [
+    "Primitives only.",
+    "No mesh import in the factory."
+  ],
+  "animationAnchors": [
+    "neck yaw socket",
+    "head pitch socket"
+  ],
+  "destructionAnchors": [
+    "hull fracture group"
+  ],
+  "risks": [
+    "Single clay view. Back and underside are mirrored guesses.",
+    "Cyan accent is inferred from the atlas, not from the reference pixels.",
+    "Chamfer is noted on the spec but the blockout primitive is still a box or cylinder."
+  ],
+  "localSpecSearch": {
+    "collection": "core_3d",
+    "queries": [
+      "hard surface turret cylinder neck barrel painted metal"
+    ],
+    "note": "Generic hard-surface primitive assembly. No domain plugin."
+  }
+}

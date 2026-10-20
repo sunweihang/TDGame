@@ -26,33 +26,48 @@ def grade_monster():
     r, g, b = rgb[:, :, 0], rgb[:, :, 1], rgb[:, :, 2]
     print("monster", rgb.shape[1], rgb.shape[0], "mean", rgb.mean(axis=(0, 1)))
     mx = np.maximum(np.maximum(r, g), b)
+    mn = np.minimum(np.minimum(r, g), b)
     bg = mx < 0.045
-    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-    soft = blur_gray(lum, 6)
-    detail = lum - soft
+    chroma = mx - mn
+    hue = np.zeros_like(r)
+    colored = chroma > 1e-5
+    hue = np.where((mx == r) & colored, ((g - b) / np.maximum(chroma, 1e-5)) % 6.0, hue)
+    hue = np.where((mx == g) & colored, ((b - r) / np.maximum(chroma, 1e-5)) + 2.0, hue)
+    hue = np.where((mx == b) & colored, ((r - g) / np.maximum(chroma, 1e-5)) + 4.0, hue)
+    hue = (hue / 6.0) % 1.0
+    sat = np.where(mx > 1e-5, chroma / np.maximum(mx, 1e-5), 0.0)
+    val = mx
+    soft = blur_gray(val, 2.0)
+    detail = val - soft
 
-    # Clear violet shell so it reads on the dark rock. Eyes and cracks stay ember.
-    nr = np.clip(r * 0.55 + b * 0.55 + 0.04 + detail * 0.5, 0.0, 1.0)
-    ng = np.clip(g * 0.72 + lum * 0.08 + detail * 0.3, 0.0, 1.0)
-    nb = np.clip(b * 1.15 + 0.03 + detail * 0.4, 0.0, 1.0)
-    ember = (r > 0.40) & (r > b * 1.22) & (r > g * 1.08) & (~bg)
-    nr = np.where(ember, np.clip(r * 0.95 + 0.08, 0.0, 1.0), nr)
-    ng = np.where(ember, np.clip(r * 0.22, 0.0, 1.0), ng)
-    nb = np.where(ember, np.clip(r * 0.05, 0.0, 1.0), nb)
+    # Neutral plates so a spawn tint can shift the shell. Eyes and cracks stay lava.
+    tone = np.clip((val - 0.10) / 0.48, 0.0, 1.0)
+    tone = np.power(tone, 0.92)
+    gray = np.clip(0.10 + tone * 0.74 + detail * 0.55, 0.0, 1.0)
+
+    ember = (~bg) & (val > 0.32) & (sat > 0.26) & ((hue < 0.10) | (hue > 0.92))
+    heat = blur_gray(ember.astype(np.float32), 0.6)
+    heat = np.where(bg, 0.0, heat)
+    lava = np.clip(np.maximum(r * 1.15, 0.55), 0.0, 1.0)
+    er = np.clip(0.55 + lava * 0.45, 0.0, 1.0)
+    eg = np.clip(lava * 0.62, 0.0, 1.0)
+    eb = np.clip(lava * 0.08, 0.0, 1.0)
+    k = np.clip(heat * 1.35, 0.0, 1.0)
+    nr = gray * (1.0 - k) + er * k
+    ng = gray * (1.0 - k) + eg * k
+    nb = gray * (1.0 - k) + eb * k
     nr = np.where(bg, 0.0, nr)
     ng = np.where(bg, 0.0, ng)
     nb = np.where(bg, 0.0, nb)
 
-    crack = (r > 0.42) & (r > b * 1.12) & (r > g * 1.05) & (~bg)
-    heat = np.clip((r - 0.35) * 2.4, 0.0, 1.0) * crack.astype(np.float32)
-    heat = blur_gray(heat, 1.2)
-    er = heat * 0.92
-    eg = heat * 0.10
-    eb = heat * 0.04
+    glow_heat = blur_gray(np.clip((r - 0.35) * 2.4, 0.0, 1.0) * ember.astype(np.float32), 1.2)
+    gr = glow_heat * 1.0
+    gg = glow_heat * 0.42
+    gb = glow_heat * 0.05
 
     albedo = np.clip(np.stack([nr, ng, nb], axis=2), 0.0, 1.0)
-    glow = np.clip(np.stack([er, eg, eb], axis=2), 0.0, 1.0)
-    print("monster after", albedo.mean(axis=(0, 1)), "glow", float(heat.mean()))
+    glow = np.clip(np.stack([gr, gg, gb], axis=2), 0.0, 1.0)
+    print("monster after", albedo.mean(axis=(0, 1)), "glow", float(glow_heat.mean()))
     Image.fromarray((albedo * 255.0).astype(np.uint8), "RGB").save(ALBEDO)
     Image.fromarray((glow * 255.0).astype(np.uint8), "RGB").save(GLOW)
 

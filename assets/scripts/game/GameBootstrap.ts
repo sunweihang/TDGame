@@ -1,12 +1,74 @@
-import { _decorator, Camera, Color, Component, DirectionalLight, Node, Quat, Vec3 } from 'cc';
+import {
+  _decorator,
+  assetManager,
+  Camera,
+  Color,
+  Component,
+  DirectionalLight,
+  instantiate,
+  MeshRenderer,
+  Node,
+  Prefab,
+  Quat,
+  Vec3,
+} from 'cc';
 import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { addLightShaft } from '../effect/LightShaft.ts';
+import { addSlotHalo } from '../effect/SlotHalo.ts';
 import { TurretGun } from '../turret/TurretGun.ts';
 import { TurretPlacer } from '../turret/TurretPlacer.ts';
 import { MonsterField } from '../monster/MonsterField.ts';
 
 const { ccclass } = _decorator;
+
+const SLOT_PREFAB = 'b8d42f01-5c39-4e70-ad26-9f3b8c5e7a42';
+
+/** Centers of the eight red plant marks, in world meters. */
+const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
+  [29.435, 16.44],
+  [10.752, 7.701],
+  [17.862, -12.534],
+  [-6.196, 3.79],
+  [-0.505, -10.573],
+  [-21.656, -3.328],
+  [-8.901, -30.459],
+  [-31.968, -26.844],
+];
+
+function paintSlotHalos(scene: Node): void {
+  for (const child of scene.children) {
+    if (child.isValid && child.name === 'slot') addSlotHalo(child);
+  }
+}
+
+function mountSlots(scene: Node): void {
+  const placed = scene.children.some((n) => n.isValid && n.name === 'slot' && n.getComponentInChildren(MeshRenderer));
+  if (placed) {
+    paintSlotHalos(scene);
+    return;
+  }
+  assetManager.loadAny({ uuid: SLOT_PREFAB }, (err, asset) => {
+    if (!scene.isValid || err || !(asset instanceof Prefab)) {
+      console.error('[GameBootstrap] 塔座预制体加载失败', err);
+      return;
+    }
+    if (scene.children.some((n) => n.isValid && n.name === 'slot' && n.getComponentInChildren(MeshRenderer))) {
+      paintSlotHalos(scene);
+      return;
+    }
+    for (const child of scene.children) {
+      if (child.name === 'slot') child.destroy();
+    }
+    for (const [x, z] of SLOT_SPOTS) {
+      const node = instantiate(asset);
+      node.name = 'slot';
+      node.setPosition(x, 0, z);
+      scene.addChild(node);
+    }
+    paintSlotHalos(scene);
+  });
+}
 
 /** Scene camera and cool key stay put. Lava fill lights every underside from below. */
 @ccclass('GameBootstrap')
@@ -26,7 +88,10 @@ export class GameBootstrap extends Component {
       if (!this.getComponent(MonsterField)) this.addComponent(MonsterField);
       this._lavaFill();
       const scene = this.node.scene;
-      if (scene) addLightShaft(scene);
+      if (scene) {
+        addLightShaft(scene);
+        mountSlots(scene);
+      }
       const canvas = scene?.getChildByName('Canvas');
       if (canvas) mountDmgFont(canvas);
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
