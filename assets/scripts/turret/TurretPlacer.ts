@@ -19,6 +19,7 @@ import {
   instantiate,
 } from 'cc';
 import { sealBaseAura, slotPad } from '../effect/BaseAura.ts';
+import { mountBaseGems, sealBaseGem } from '../effect/BaseGem.ts';
 import { LaserPad } from '../effect/LaserPad.ts';
 import { spawnPlantBeam } from '../effect/PlantBeam.ts';
 import { paintTurretWire } from '../effect/TurretWire.ts';
@@ -49,7 +50,7 @@ type Pack = { template: Node; offX: number; offZ: number; footY: number };
 
 /**
  * A tap on an empty base builds a random turret there.
- * The base column goes away, then the build hologram and digital rain play.
+ * The floating crystal goes away, then the build hologram and digital rain play.
  * Square-grid placement remains for an armed turret.
  */
 @ccclass('TurretPlacer')
@@ -120,6 +121,7 @@ export class TurretPlacer extends Component {
     if (!scene) return;
     if (this._grid) {
       this._loadPad(scene);
+      mountBaseGems(scene);
       return;
     }
     const gun = this.getComponent(TurretGun);
@@ -155,6 +157,7 @@ export class TurretPlacer extends Component {
     this._load10002(scene);
     this._load10003(scene);
     this._loadPad(scene);
+    mountBaseGems(scene);
   }
 
   private _parked(scene: Node): Node[] {
@@ -423,7 +426,7 @@ export class TurretPlacer extends Component {
     return ready[Math.floor(Math.random() * ready.length)];
   }
 
-  /** Drop a random turret on this pad, clear its column, and play the build effect. */
+  /** Drop a random turret on this pad, clear its crystal, and play the build effect. */
   private _plantAt(slot: Node, x: number, z: number): void {
     if (this._bases.has(slot)) return;
     const kind = this._rollKind();
@@ -436,6 +439,7 @@ export class TurretPlacer extends Component {
     if (now - this._lastDrop < 80) return;
     this._bases.add(slot);
     sealBaseAura(slot);
+    sealBaseGem(slot);
     const halo = slot.getChildByName('Halo');
     if (halo?.isValid) halo.destroy();
     const root = instantiate(pack.template);

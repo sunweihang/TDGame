@@ -9,9 +9,16 @@ import {
   view,
 } from 'cc';
 
-/** Design canvas — mobile portrait. */
+/** Route frame. This 9:16 rectangle stays fully on screen. */
 export const DESIGN_W = 1080;
 export const DESIGN_H = 1920;
+
+/**
+ * Painted plate around the route: 25% extra forest on every side.
+ * The backdrop sprite is this size, centered on the route frame.
+ */
+export const PLATE_W = 1620;
+export const PLATE_H = 2880;
 
 /** Desktop side bars outside the 1080 portrait frame — plain black. */
 export const LETTERBOX_CLEAR = new Color(0, 0, 0, 255);
@@ -24,20 +31,27 @@ let _appliedWinW = -1;
 let _appliedWinH = -1;
 
 /**
- * Portrait policy:
- * - Tall/narrow phones (aspect ≤ 9:16): FIXED_WIDTH — fill width, grow height.
- * - Wide desktop windows: SHOW_ALL — keep a 9:16 frame with side letterbox.
+ * The route frame always stays on screen. A taller window reveals the extra
+ * forest above and below; a wider window reveals the extra forest on the sides.
+ * Only a window wilder than the painted margin falls back to bars.
  */
 export function applyDesignResolution(): void {
   const win = screen.windowSize;
   const ww = win.width;
   const wh = win.height;
-  const winAspect = ww / Math.max(wh, 1);
+  if (ww < 2 || wh < 2) return;
+  const aspect = ww / wh;
   const designAspect = DESIGN_W / DESIGN_H;
+  let width = DESIGN_W;
+  let height = DESIGN_H;
+  if (aspect <= designAspect) height = DESIGN_W / aspect;
+  else width = DESIGN_H * aspect;
   const policy =
-    winAspect <= designAspect + 1e-3
-      ? ResolutionPolicy.FIXED_WIDTH
-      : ResolutionPolicy.SHOW_ALL;
+    width > PLATE_W || height > PLATE_H
+      ? ResolutionPolicy.SHOW_ALL
+      : aspect <= designAspect
+        ? ResolutionPolicy.FIXED_WIDTH
+        : ResolutionPolicy.FIXED_HEIGHT;
   if (_appliedPolicy === policy && _appliedWinW === ww && _appliedWinH === wh) {
     return;
   }
@@ -47,17 +61,34 @@ export function applyDesignResolution(): void {
   view.setDesignResolutionSize(DESIGN_W, DESIGN_H, policy);
 }
 
-/** Visible design-space size after the active resolution policy. */
-export function portraitVisibleSize(out: Size = _size): Size {
-  const v = view.getVisibleSize();
-  out.set(Math.max(v.width, DESIGN_W), Math.max(v.height, DESIGN_H));
+/**
+ * Design-pixel view. It always contains the 1080×1920 route, and grows into
+ * the painted margin until the window is full.
+ */
+export function plateFrame(out: Size = _size): Size {
+  const win = screen.windowSize;
+  const aspect = win.width / Math.max(win.height, 1);
+  const designAspect = DESIGN_W / DESIGN_H;
+  let width = DESIGN_W;
+  let height = DESIGN_H;
+  if (aspect <= designAspect) height = DESIGN_W / aspect;
+  else width = DESIGN_H * aspect;
+  if (width > PLATE_W || height > PLATE_H) {
+    width = DESIGN_W;
+    height = DESIGN_H;
+  }
+  out.set(width, height);
   return out;
+}
+
+/** Visible design-space size. The route frame plus whatever margin fits. */
+export function portraitVisibleSize(out: Size = _size): Size {
+  return plateFrame(out);
 }
 
 /**
  * Browser client coords → UI bottom-left (same space as `event.getUILocation()`).
- * Maps through the letterboxed viewport so desktop SHOW_ALL / editor preview
- * don't shift taps into the black bars.
+ * The point lands in the visible frame, route area plus the margin on screen.
  */
 export function clientToUiLocation(
   clientX: number,
@@ -95,10 +126,7 @@ export function clientToUiLocation(
   };
 }
 
-/**
- * Normalized Camera.rect matching the content viewport.
- * FIXED_WIDTH on phones → full window; SHOW_ALL on desktop → letterboxed frame.
- */
+/** Normalized Camera.rect. Full window, or the route frame when the margin runs out. */
 export function portraitCameraRect(out: Rect = _rect): Rect {
   const vp = view.getViewportRect();
   const win = screen.windowSize;
@@ -108,8 +136,17 @@ export function portraitCameraRect(out: Rect = _rect): Rect {
   return out;
 }
 
-/** Apply portrait viewport rect to a camera. */
+/** Match the camera to the resolution viewport. Fixed policies fill the window. */
 export function applyPortraitCameraRect(cam: Camera): void {
   const r = portraitCameraRect();
+  const cur = cam.rect;
+  if (
+    Math.abs(cur.x - r.x) < 1e-4
+    && Math.abs(cur.y - r.y) < 1e-4
+    && Math.abs(cur.width - r.width) < 1e-4
+    && Math.abs(cur.height - r.height) < 1e-4
+  ) {
+    return;
+  }
   cam.rect = new Rect(r.x, r.y, r.width, r.height);
 }

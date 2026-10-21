@@ -1,25 +1,35 @@
-import { Camera, Color, Label, Layers, Node, UIOpacity, UITransform, Vec3, Widget } from 'cc';
+import { Camera, Color, Label, Layers, Node, Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, Widget, resources } from 'cc';
 
 /**
  * Each hit pops its own number on the crown (`blood`, else a short head lift)
  * and floats up on its own. Later shots do not add into a number already in the air.
+ * The sideways scatter starts on the crown and eases out over the first part of
+ * the pop, so the number flies off the head instead of appearing already aside.
  * 0.8s: scale 1.7 → 1 → 0.5, rise, then fade.
  * Offsets are the original 720 canvas, then ×1.5 onto this 1080 canvas.
  * This camera shows about 80 meters top to bottom, so the rise stays a short
  * lift off the head instead of the old multi-meter screen offset.
- * Hits are lemon, crits are gold, hurts are red.
+ * Hits are white, crits are gold with the crit icon, hurts are red.
+ * Crit size, height, and Icon_CriticalRate match XPHero.
  */
 const UI = 1080 / 720;
 const DURATION = 0.8;
-const FONT_HIT = 12;
-const FONT_CRIT = 19;
+const FONT_HIT = 24;
+const FONT_CRIT = 38;
 const MAX_PER_FRAME = 30;
-/** 720-canvas pixels. Wide enough that a two-digit pop does not cover the last one. */
-const SCATTER_X = 46;
+/** 720-canvas pixels. Wide enough that a crit icon does not cover the last pop. */
+const SCATTER_X = 72;
 const SCATTER_Y0 = -10;
 const SCATTER_Y1 = 52;
-const SCATTER_GAP = 28;
-const INK_HIT = new Color(255, 220, 72, 255);
+const SCATTER_GAP = 44;
+/** Share of the pop spent flying from the crown to the scatter landing. */
+const FLY_U = 0.38;
+const CRIT_ICON = 'ui/stat/Icon_CriticalRate';
+/** icon_crit center relative to the number center, in the 720 canvas. */
+const CRIT_ICON_X = -22.8;
+const CRIT_ICON_Y = 17.4;
+const CRIT_ICON_PX = 40 * 1.2475;
+const INK_HIT = new Color(255, 255, 255, 255);
 const INK_CRIT = new Color(255, 244, 0, 255);
 const INK_PLAYER = new Color(248, 95, 95, 255);
 const EDGE = new Color(0, 0, 0, 255);
@@ -29,6 +39,7 @@ export type Kind = 'hit' | 'crit' | 'player';
 type Floater = {
   node: Node;
   lab: Label;
+  icon: Node;
   fade: UIOpacity;
   life: number;
   layX: number;
@@ -55,6 +66,7 @@ const _queue: Pending[] = [];
 
 let _root: Node | null = null;
 let _canvas: Node | null = null;
+let _critIcon: SpriteFrame | null = null;
 
 export function mountDmgFont(canvas: Node): void {
   if (_root?.isValid) _root.destroy();
@@ -79,6 +91,7 @@ export function mountDmgFont(canvas: Node): void {
   w.updateAlignment();
   passThrough(root);
   _root = root;
+  loadArt();
 }
 
 export function showDmgFont(target: Node, amount: number, kind: Kind): void {
@@ -135,6 +148,7 @@ function paint(floater: Floater): void {
   floater.lab.lineHeight = size + 4;
   floater.lab.color = kind === 'crit' ? INK_CRIT : kind === 'player' ? INK_PLAYER : INK_HIT;
   floater.lab.outlineWidth = Math.max(2, Math.round(size * 0.1));
+  floater.icon.active = kind === 'crit';
 }
 
 function scatter(target: Node, floater: Floater): void {
@@ -149,7 +163,7 @@ function scatter(target: Node, floater: Floater): void {
       const other = _live[i];
       if (other.target !== target) continue;
       const dx = x - other.layX;
-      const dy = y - (other.layY + offsetYAt(Math.min(1, other.life / DURATION)));
+      const dy = y - other.layY;
       const d = dx * dx + dy * dy;
       if (d < near) near = d;
     }
@@ -173,6 +187,7 @@ function spawn(job: Pending): void {
   floater.amount = job.amount;
   floater.target = job.node;
   scatter(job.node, floater);
+  if (kind === 'crit') floater.layY += 20;
   overhead(job.node, floater.at);
   paint(floater);
   floater.node.active = true;
@@ -189,7 +204,24 @@ function rent(): Floater {
   _root!.addChild(node);
   node.addComponent(UITransform).setContentSize(220, 72);
   const fade = node.addComponent(UIOpacity);
-  const lab = node.addComponent(Label);
+
+  const icon = new Node('icon');
+  icon.layer = Layers.Enum.UI_2D;
+  node.addChild(icon);
+  const iconPx = CRIT_ICON_PX * UI;
+  icon.addComponent(UITransform).setContentSize(iconPx, iconPx);
+  icon.setPosition(CRIT_ICON_X * UI, CRIT_ICON_Y * UI, 0);
+  const spr = icon.addComponent(Sprite);
+  spr.sizeMode = Sprite.SizeMode.CUSTOM;
+  if (_critIcon) spr.spriteFrame = _critIcon;
+  icon.active = false;
+  passThrough(icon);
+
+  const num = new Node('num');
+  num.layer = Layers.Enum.UI_2D;
+  node.addChild(num);
+  num.addComponent(UITransform).setContentSize(220, 72);
+  const lab = num.addComponent(Label);
   lab.useSystemFont = true;
   lab.fontFamily = 'Microsoft YaHei';
   lab.isBold = true;
@@ -202,8 +234,32 @@ function rent(): Floater {
   lab.horizontalAlign = Label.HorizontalAlign.CENTER;
   lab.verticalAlign = Label.VerticalAlign.CENTER;
   lab.overflow = Label.Overflow.NONE;
-  passThrough(node);
-  return { node, lab, fade, life: 0, layX: 0, layY: 0, at: new Vec3(), target: null, amount: 0, kind: 'hit' };
+  passThrough(num);
+  return { node, lab, icon, fade, life: 0, layX: 0, layY: 0, at: new Vec3(), target: null, amount: 0, kind: 'hit' };
+}
+
+function loadArt(attempt = 0): void {
+  if (_critIcon) {
+    paintIcons();
+    return;
+  }
+  resources.load(`${CRIT_ICON}/spriteFrame`, SpriteFrame, (err, frame) => {
+    if (err || !frame) {
+      if (attempt < 12) setTimeout(() => loadArt(attempt + 1), 400);
+      return;
+    }
+    _critIcon = frame;
+    paintIcons();
+  });
+}
+
+function paintIcons(): void {
+  const apply = (floater: Floater): void => {
+    const spr = floater.icon.getComponent(Sprite);
+    if (spr && _critIcon) spr.spriteFrame = _critIcon;
+  };
+  for (let i = 0; i < _live.length; i++) apply(_live[i]);
+  for (let i = 0; i < _pool.length; i++) apply(_pool[i]);
 }
 
 /** Combat text sits on the canvas but must not eat taps on the plant bar. */
@@ -217,8 +273,9 @@ function place(floater: Floater, cam: Camera | null, canvas: Node | null, rise: 
   const parent = floater.node.parent;
   if (!cam?.isValid || !canvas?.isValid || !parent?.isValid) return false;
   if (!projectWorldToUi(cam, _world, parent, _ui)) return false;
+  const fly = flyAt(Math.min(1, floater.life / DURATION));
   floater.node.active = true;
-  floater.node.setPosition(_ui.x + floater.layX * UI, _ui.y + (floater.layY + rise) * UI, 0);
+  floater.node.setPosition(_ui.x + floater.layX * fly * UI, _ui.y + (floater.layY * fly + rise) * UI, 0);
   return true;
 }
 
@@ -276,6 +333,12 @@ function scaleAt(u: number): number {
   if (u <= 0.1458) return hermite(0, 1.7, -4.9525, 0.1458, 1, 0, u);
   if (u <= 0.5208) return 1;
   return hermite(0.5208, 1, 0, 1, 0.5, 0, u);
+}
+
+/** 0 on the crown, 1 at the scatter landing. Starts quick, then settles. */
+function flyAt(u: number): number {
+  if (u >= FLY_U) return 1;
+  return hermite(0, 0, 3.4, FLY_U, 1, 0, u);
 }
 
 /** Rise on the 720 canvas, starting on the crown. About 42px on this 1080 canvas. */

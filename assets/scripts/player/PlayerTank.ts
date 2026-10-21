@@ -13,6 +13,7 @@ import {
 } from 'cc';
 import { createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
+import { clearMonsterHull, noteMonsterHull } from '../monster/MonsterSkirt.ts';
 import { mountTankStick, settleStick, stickAxis } from './TankStick.ts';
 
 const { ccclass } = _decorator;
@@ -29,10 +30,12 @@ const AIM_GATE = 0.2;
 /** Hull footprint on the ground, meters. Tracks are about 3 wide and 5.8 long. */
 const HULL_HALF_X = 1.55;
 const HULL_HALF_Z = 2.95;
+/** Tread overlap uses this fraction of the bullet hit radius. */
+const PLOW_BODY = 0.74;
 /** Pull the tracks in from the frame edge, in camera view units. */
 const VIEW_INSET = 0.35;
-/** Cyan pad radius over the base card width. Same fraction as the base hologram. */
-const DISC_HALF = 0.352;
+/** Stone pad radius over the base card width. Same fraction as the base hologram. */
+const DISC_HALF = 0.4003;
 
 const _disc = { x: 0, z: 0, r: 0 };
 
@@ -46,6 +49,7 @@ const _aim = new Vec3();
 const _muzzleW = new Vec3();
 const _dir = new Vec3();
 const _local = new Vec3();
+const _feet = new Vec3();
 let _sx = 0;
 let _sy = 0;
 
@@ -130,6 +134,9 @@ export class PlayerTank extends Component {
   private _sign = 1;
   private _calibrated = false;
   private _cool = 0.4;
+  private _markX = 0;
+  private _markZ = 0;
+  private _marked = false;
 
   start(): void {
     this._loadBullet();
@@ -142,15 +149,23 @@ export class PlayerTank extends Component {
     if (canvas) mountTankStick(canvas);
   }
 
+  onDisable(): void {
+    clearMonsterHull();
+  }
+
   update(dt: number): void {
     settleStick();
     const root = this._root;
     const turret = this._turret;
-    if (!root?.isValid || !turret?.isValid) return;
+    if (!root?.isValid || !turret?.isValid) {
+      clearMonsterHull();
+      return;
+    }
     if (!this._calibrated) this._calibrate();
     this._drive(root, dt);
     this._keepOffBases(root);
     root.updateWorldTransform();
+    this._plow(root, dt);
     this._cool -= dt;
     const monster = this._nearest(root);
     const err = this._aimTurret(turret, monster, dt);
@@ -388,8 +403,11 @@ export class PlayerTank extends Component {
     if (!cam?.node?.isValid) return null;
     const halfH = cam.orthoHeight;
     if (!(halfH > 1)) return null;
+    const rect = cam.rect;
     const win = screen.windowSize;
-    const aspect = win.height > 1 ? win.width / win.height : 1080 / 1920;
+    const w = win.width * rect.width;
+    const h = win.height * rect.height;
+    const aspect = h > 1 ? w / h : 1080 / 1920;
     return { halfW: halfH * aspect, halfH };
   }
 
@@ -452,6 +470,38 @@ export class PlayerTank extends Component {
     this._clamp(_pos);
     _pos.y = 0;
     root.setWorldPosition(_pos);
+  }
+
+  /**
+   * The hull is solid. Throttle into a body and the nose shoves it, then the
+   * tracks pull it under, flatten it, and drop it out the back. Parked tracks
+   * only push the body aside.
+   */
+  private _plow(root: Node, dt: number): void {
+    const x = root.worldPosition.x;
+    const z = root.worldPosition.z;
+    let tvx = 0;
+    let tvz = 0;
+    if (this._marked && dt > 1e-5) {
+      tvx = (x - this._markX) / dt;
+      tvz = (z - this._markZ) / dt;
+    }
+    this._markX = x;
+    this._markZ = z;
+    this._marked = true;
+    const speed = Math.hypot(tvx, tvz);
+    const c = Math.cos(this._hull);
+    const s = Math.sin(this._hull);
+    noteMonsterHull(x, z, c, s, HULL_HALF_X, HULL_HALF_Z, tvx, tvz);
+    const list = MonsterUnit.all;
+    for (let i = 0; i < list.length; i++) {
+      const unit = list[i];
+      if (!unit.threat || !unit.node?.isValid) continue;
+      unit.feet(_feet);
+      const rad = unit.hitRadius * PLOW_BODY;
+      if (!treadContact(x, z, c, s, _feet.x, _feet.z, rad, tvx, tvz, speed, unit.plowAge, unit.bulk, dt)) continue;
+      unit.plow(_hit.mode, _hit.nx, _hit.nz, _hit.pen, _hit.mx, _hit.mz, _hit.power, dt);
+    }
   }
 
   private _nearest(root: Node): MonsterUnit | null {
@@ -553,7 +603,7 @@ function shoveBases(pos: Vec3, cos: number, sin: number, kids: readonly Node[]):
   }
 }
 
-/** Ground center and radius of a base's cyan pad. */
+/** Ground center and radius of a base's stone pad. */
 function baseDisc(slot: Node): boolean {
   const face = slot.getChildByName('Face');
   const aura = slot.getChildByName('BaseAura');
@@ -584,9 +634,9 @@ function baseDisc(slot: Node): boolean {
   }
   const height = Math.abs(face.worldScale.y);
   const p = face.worldPosition;
-  const ox = _right.x * width * 0.0077 + _fwd.x * height * 0.068;
-  const oy = _right.y * width * 0.0077 + _fwd.y * height * 0.068;
-  const oz = _right.z * width * 0.0077 + _fwd.z * height * 0.068;
+  const ox = _right.x * width * 0.0736 + _fwd.x * height * 0.0278;
+  const oy = _right.y * width * 0.0736 + _fwd.y * height * 0.0278;
+  const oz = _right.z * width * 0.0736 + _fwd.z * height * 0.0278;
   const y = p.y + oy;
   const t = (0.6 - y) / _dir.y;
   _disc.x = p.x + ox + _dir.x * t;
@@ -640,5 +690,123 @@ function shoveOne(pos: Vec3, cos: number, sin: number, bx: number, bz: number, r
     pos.x -= sin * dir * push;
     pos.z -= cos * dir * push;
   }
+  return true;
+}
+
+const _hit = {
+  mode: 'bump' as 'body' | 'bump' | 'grind',
+  nx: 0,
+  nz: 0,
+  pen: 0,
+  mx: 0,
+  mz: 0,
+  power: 0,
+};
+let _lx = 0;
+let _lz = 0;
+let _wx = 0;
+let _wz = 0;
+
+function toLocal(dx: number, dz: number, c: number, s: number): void {
+  _lx = dx * c - dz * s;
+  _lz = dx * s + dz * c;
+}
+
+function toWorld(lx: number, lz: number, c: number, s: number): void {
+  _wx = lx * c + lz * s;
+  _wz = -lx * s + lz * c;
+}
+
+/** Circle against the hull. Fills `_hit` when the body touches the tracks. */
+function treadContact(
+  x: number,
+  z: number,
+  c: number,
+  s: number,
+  mx: number,
+  mz: number,
+  rad: number,
+  tvx: number,
+  tvz: number,
+  speed: number,
+  age: number,
+  bulk: number,
+  dt: number,
+): boolean {
+  if (!(rad > 0.05)) return false;
+  toLocal(mx - x, mz - z, c, s);
+  const lx = _lx;
+  const lz = _lz;
+  const hx = HULL_HALF_X;
+  const hz = HULL_HALF_Z;
+  const cx = Math.max(-hx, Math.min(hx, lx));
+  const cz = Math.max(-hz, Math.min(hz, lz));
+  const ex = lx - cx;
+  const ez = lz - cz;
+  const dist = Math.hypot(ex, ez);
+  const inside = dist <= 1e-4;
+  if (!inside && dist >= rad) return false;
+
+  const fx = s;
+  const fz = c;
+  let nx = 0;
+  let nz = 0;
+  let pen = 0;
+  if (inside) {
+    const ox = hx - Math.abs(lx);
+    const oz = hz - Math.abs(lz);
+    if (ox < oz) {
+      const sign = lx >= 0 ? 1 : -1;
+      toWorld(sign, 0, c, s);
+      pen = Math.min(ox + rad, 2.2);
+    } else {
+      const sign = lz >= 0 ? 1 : -1;
+      toWorld(0, sign, c, s);
+      pen = Math.min(oz + rad, 2.2);
+    }
+    nx = _wx;
+    nz = _wz;
+  } else {
+    toWorld(ex / dist, ez / dist, c, s);
+    nx = _wx;
+    nz = _wz;
+    pen = rad - dist;
+  }
+
+  const power = Math.min(speed / SPEED, 1.15);
+  const fwd = tvx * fx + tvz * fz;
+  const swallowAt = 0.12 + Math.max(0, bulk - 1) * 0.14;
+  const driving = power >= 0.14 && fwd > Math.max(speed * 0.45, 1.4);
+  const inFront = lz > hz && Math.abs(lx) <= hx + 0.3;
+  _hit.nx = nx;
+  _hit.nz = nz;
+  _hit.pen = pen;
+  _hit.mx = 0;
+  _hit.mz = 0;
+  if (!driving) {
+    _hit.mode = 'body';
+    _hit.power = 0;
+    return true;
+  }
+  if (inside || (inFront && age >= swallowAt)) {
+    const slip = Math.max(3.2, fwd * (0.52 + 0.1 * Math.min(bulk, 4)));
+    let gx = (tvx - fx * slip) * dt;
+    let gz = (tvz - fz * slip) * dt;
+    if (!inside) {
+      gx -= fx * (rad + 0.45);
+      gz -= fz * (rad + 0.45);
+    }
+    _hit.mode = 'grind';
+    _hit.mx = gx;
+    _hit.mz = gz;
+    _hit.pen = 0;
+    _hit.nx = fx;
+    _hit.nz = fz;
+    _hit.power = power;
+    return true;
+  }
+  const align = speed > 0.2 ? Math.max(0, (tvx * nx + tvz * nz) / speed) : 0;
+  _hit.mode = 'bump';
+  _hit.power = power * (0.62 + 0.38 * align);
   return true;
 }

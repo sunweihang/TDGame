@@ -15,8 +15,8 @@ const { ccclass } = _decorator;
 
 const PREFAB = 'c8e14a70-5b29-4d63-9f18-2a6d0c7e4b51';
 const BASE_R = 148;
-/** How far the lens slides. It stays on the plate, inside the cyan rim. */
-const TRAVEL = 53;
+/** How far the knob slides. It stays on the plate, inside the silver rim. */
+const TRAVEL = 48;
 const DEAD = 0.16;
 
 const _axis = new Vec2();
@@ -52,7 +52,7 @@ export function settleStick(): void {
 
 /**
  * Full-screen stick under the portrait canvas.
- * The plate appears where the finger lands. The glass lens is the part that moves.
+ * The plate appears where the finger lands. The metal knob is the part that moves.
  * The scene instance is the prefab. This only builds one when the canvas has none.
  */
 export function mountTankStick(canvas: Node): void {
@@ -95,7 +95,7 @@ function fitStick(node: Node): void {
 
 /**
  * Drive stick. The root covers the canvas and only receives the touch.
- * Stick is the plate, and it moves to the finger. Knob slides inside it.
+ * Stick is the plate, and it moves to the finger. The knob slides inside it.
  */
 @ccclass('TankStick')
 export class TankStick extends Component {
@@ -109,11 +109,13 @@ export class TankStick extends Component {
   private _originY = 0;
   private _stick: Node | null = null;
   private _knob: Node | null = null;
+  private _arrow: Node | null = null;
 
   onLoad(): void {
     _live = this;
     this._stick = this.node.getChildByName('Stick');
     this._knob = this._stick?.getChildByName('Knob') ?? null;
+    this._arrow = this._stick?.getChildByName('Arrow') ?? null;
     if (this._stick) this._stick.active = false;
     this._place(0, 0);
     fitStick(this.node);
@@ -201,5 +203,17 @@ export class TankStick extends Component {
 
   private _place(x: number, y: number): void {
     this._knob?.setPosition(x, y, 0);
+    this._aim(x, y);
+  }
+
+  /** Arrow art points up. Positive node.angle is counter-clockwise. */
+  private _aim(x: number, y: number): void {
+    const arrow = this._arrow;
+    if (!arrow) return;
+    if (x * x + y * y < 0.001) {
+      arrow.angle = 0;
+      return;
+    }
+    arrow.angle = -Math.atan2(x, y) * (180 / Math.PI);
   }
 }

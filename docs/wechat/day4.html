@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>从零到一实战3D塔防微信小游戏 Day4</title>
+</head>
+<body style="margin:0;background:#ffffff;">
+<section style="max-width:677px;margin:0 auto;padding:12px 4px 48px;background:#ffffff;color:#3f3a34;font-size:16px;line-height:1.95;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;">
+
+  <section style="height:6px;background:#0f6e62;border-radius:3px;margin:0 0 22px;"></section>
+
+  <p style="margin:0 0 12px;line-height:1.4;">
+    <span style="display:inline-block;padding:3px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">DAY 4</span>
+    <span style="display:inline-block;margin-left:8px;font-size:13px;letter-spacing:2px;color:#8a8175;">从零到一 · 3D 塔防</span>
+  </p>
+  <p style="margin:0 0 12px;font-size:26px;line-height:1.4;font-weight:700;color:#1c1915;">从零到一实战3D塔防微信小游戏 Day4</p>
+  <section style="width:36px;height:3px;background:#e0b56a;border-radius:2px;margin:0 0 18px;"></section>
+  <p style="margin:0 0 28px;font-size:16px;line-height:1.95;color:#4a453e;">Day3 已完成机枪炮塔 10001、等距种塔与战斗反馈。可选激光炮或机枪种下，受击后显示血条与伤害数字。Day4 将落点改为八个固定炮位，补上绘制路线、两座新炮塔与可驾驶坦克，并让每次命中单独飘出伤害数字。</p>
+
+  <p style="margin:0 0 14px;font-size:13px;line-height:1.4;letter-spacing:4px;font-weight:700;color:#0f6e62;">今日目标</p>
+
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">01</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">八座炮位</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">战场固定八个底座贴图，空位立青色光柱。点按空位后，从四座炮塔中随机落下一座，光柱随即收起。</p>
+  </section>
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">02</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">刷怪路线与新炮塔</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">怪物沿背景上绘制的两条道路行走，走到尽头后离场。10002 为双管，10003 为九管，每根炮管各自发射。</p>
+  </section>
+  <section style="margin:0 0 8px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">03</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">玩家坦克与伤害数字</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">摇杆驾驶车体，炮塔自行瞄准最近的怪物。每次命中单独飘出一条伤害数字，不再合并成一条。</p>
+  </section>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">01</span>八座炮位</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">本节只改落点。Day3 的全息退出、炮塔放大与方形数字雨保持不变。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">底座贴图</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">八个空位最初以红色光柱标出，该方案已撤回。最终使用激活底座贴图，平贴在地面上，并带一层接触阴影。贴图中的青色圆盘即落点，圆盘中心立一根青色光柱，随时间旋转，顶部逐渐透明。战场另加一组淡蓝色体积光。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">八座底座贴在战场上，空位上方立着青色光柱。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">点按放置</p>
+  <p style="margin:0;font-size:16px;line-height:1.95;color:#3f3a34;">放置不再点选任意菱形格。短按空位后，从已加载的激光炮 10000、机枪 10001、双管 10002 与九管 10003 中随机落下一座，底座对齐青色圆盘中心。光柱收起，全息预览退出，正式炮塔放大就位，并播放方形数字雨。拖动摇杆时不会种塔，已占用的底座不能再次放置。</p>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">02</span>刷怪路线与新炮塔</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">激光炮 10000 与机枪 10001 的旋转轴保持不变。四座炮塔目前仍发射蓝色激光 20000。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">绘制路线</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">Day3 的怪物从战场四边进入，并直冲最近的炮塔。Day4 按背景图上的中心线绘出两条道路，入口分别在画面上方与侧方，终点同在画面下方。怪物从空闲入口生成，沿折线行走。到达终点后离场，不播放死亡动作。路上只在炮塔已经进入啃咬距离时停下攻击，不会离开道路去追击。场上同时存在的怪物不超过十只，按出生顺序更换体色，每四只中有一只体型更大、血量更高。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">战场背景上的两条道路，怪物沿路走向画面下方。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">双管与九管</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">10002 与 10003 完成导入，头部绕颈部旋转，落座方式与机枪一致。10002 的两根炮管共用一个网格，每根炮管沿炮口方向各自发射。10003 的炮口为三乘三共九个出口，与面部连成一体，九个出口同样各自发射。单管机枪仍只从炮口打出一发。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">双管 10002 与九管 10003。每根炮管各自打出激光。</p>
+  </section>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">03</span>玩家坦克与伤害数字</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">固定炮塔仍自动索敌。本节新增可驾驶单位，并校正伤害数字的显示。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">摇杆与炮塔</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">手指按下的位置出现摇杆底盘，拨钮在青色圆圈内滑动。车体按摄像机方向转向并前进，留在画面范围内，履带不压上底座圆盘。炮塔与车体分开旋转，瞄准最近的怪物，炮口对齐后发射蓝色激光。松手后车体停止，炮塔继续跟踪。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">战场上的玩家坦克，手指处出现摇杆，炮塔指向怪物。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">分开飘字</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">Day3 将同一帧打在同一单位上的数字合并为一条。现已改为每次命中单独生成一条，出现在头顶附近并相互错开，避免后一发盖住前一发。数字先放大，再缩小、上移并淡出。对怪物的伤害为柠檬黄色，暴击为金色，对炮塔的伤害为红色。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">连续命中。多条伤害数字在怪物头顶错开上移。</p>
+  </section>
+
+  <section style="margin:32px 0 0;padding:18px 18px 16px;background:#14312c;border-radius:10px;">
+    <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:2px;font-weight:700;color:#e0b56a;">最终效果</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#d7ebe4;">配视频 · 点按底座落下炮塔，青色光柱收起，怪物沿路走来，摇杆驾驶坦克开火，伤害数字逐条飘出。</p>
+  </section>
+
+  <section style="margin:16px 0 0;padding:16px 18px 12px;background:#f7f5f0;border-radius:10px;">
+    <p style="margin:0 0 6px;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8a8175;">本项目已经开源</p>
+    <p style="margin:0;font-size:15px;line-height:1.6;"><a href="https://github.com/sunweihang/TDGame" style="color:#0f6e62;font-weight:700;text-decoration:none;">https://github.com/sunweihang/TDGame</a></p>
+  </section>
+
+  <p style="margin:32px 0 10px;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">关于作者</p>
+  <section style="height:1px;background:#ece6dc;"></section>
+
+</section>
+</body>
+</html>

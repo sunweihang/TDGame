@@ -1,0 +1,65 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: hp-fill-vs:vert
+      frag: hp-fill-fs:frag
+      properties:
+        mainTexture: { value: white }
+        mainColor:   { value: [1.0, 1.0, 1.0, 1.0], editor: { type: color } }
+        fillAmount:  { value: 1.0 }
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: true
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+}%
+
+CCProgram hp-fill-vs %{
+  precision highp float;
+  #include <legacy/input-standard>
+  #include <builtin/uniforms/cc-global>
+  #include <legacy/decode-base>
+  #include <legacy/local-batch>
+
+  out vec2 v_uv;
+  out float v_fill;
+
+  vec4 vert () {
+    StandardVertInput In;
+    CCVertInput(In);
+    mat4 matWorld, matWorldIT;
+    CCGetWorldMatrixFull(matWorld, matWorldIT);
+    v_uv = a_texCoord;
+    v_fill = In.position.x + 0.5;
+    return cc_matViewProj * (matWorld * In.position);
+  }
+}%
+
+CCProgram hp-fill-fs %{
+  precision highp float;
+  #include <legacy/output>
+
+  in vec2 v_uv;
+  in float v_fill;
+  uniform sampler2D mainTexture;
+  uniform Constant {
+    vec4 mainColor;
+    float fillAmount;
+  };
+
+  vec4 frag () {
+    vec4 tex = texture(mainTexture, v_uv);
+    float mask = 1.0 - smoothstep(fillAmount - 0.006, fillAmount + 0.003, v_fill);
+    float alpha = tex.a * mainColor.a * mask;
+    if (alpha < 0.02) discard;
+    return CCFragOutput(vec4(tex.rgb * mainColor.rgb, alpha));
+  }
+}%

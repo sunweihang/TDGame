@@ -9,7 +9,7 @@ fn writeLine path text = (
 )
 try (
     openLog @"d:\Custom\TD\temp\boss-shenshi\listener.log" mode:"w"
-    local r = fileIn @"d:\Custom\TD\tools\max\skin-boss-shenshi.ms"
+    local r = fileIn @"d:\Custom\TD\tools\max\skin-boss-cs.ms"
     writeLine statusPath ("FILEIN " + (r as string))
     closeLog()
 ) catch (

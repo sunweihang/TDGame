@@ -45,13 +45,15 @@ System.register([], function (_export, _context) {
                 profiling: {
                   showFPS: this.showFPS
                 },
-                // Fill the WeChat canvas — avoid SHOW_ALL letterbox from settings.json.
+                // Phones are taller than 9:16. Fixed width keeps the whole route
+                // and shows the extra forest above and below. The battle scene
+                // switches to fixed height when the window is wider.
                 screen: {
                   exactFitScreen: true,
                   designResolution: {
                     width: 1080,
                     height: 1920,
-                    // 4 = FIXED_WIDTH (tall phones expand height, no top/bottom bars)
+                    // 4 = FIXED_WIDTH
                     policy: 4
                   }
                 },

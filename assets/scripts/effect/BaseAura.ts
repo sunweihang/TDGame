@@ -16,11 +16,11 @@ import {
 
 const { ccclass } = _decorator;
 
-/** Cyan disc center in slot-face-on.png, as a fraction of the card size from its center. */
-const GLOW_RIGHT = 0.0077;
-const GLOW_UP = 0.068;
-/** Cyan disc radius over the card width. */
-const DISC_HALF = 0.352;
+/** Stone center in slot-face-on.png, as a fraction of the card size from its center. */
+const GLOW_RIGHT = 0.0736;
+const GLOW_UP = 0.0278;
+/** Stone radius over the card width. The painted shadow sits outside this disc. */
+const DISC_HALF = 0.4003;
 /** The card is a billboard, so any height on the view ray lands on the same screen spot. */
 const PAD_Y = 0.6;
 
@@ -46,7 +46,7 @@ const _jobs: AuraJob[] = [];
 
 export type SlotPad = { x: number; z: number; radius: number; column: number; top: number };
 
-/** Ground center of the cyan disc, plus the column that stands on it. */
+/** Ground center of the stone pad, plus the column that stands on it. */
 export function slotPad(slot: Node): SlotPad | null {
   if (!slot.isValid) return null;
   const face = slot.getChildByName('Face');
@@ -84,7 +84,7 @@ export function sealBaseAura(slot: Node): void {
 }
 
 /**
- * Drops the base-aura prefab on a slot-face pad, sized to that pad's cyan disc.
+ * Drops the base-aura prefab on a slot-face pad, sized to that pad's stone disc.
  */
 export function addBaseAura(slot: Node): void {
   if (!slot.isValid || _sealed.has(slot) || slot.getChildByName('BaseAura')) return;
@@ -153,7 +153,7 @@ class BaseAuraView extends Component {
   }
 }
 
-/** Cyan-disc center on the ground. Null when the card does not face down toward it. */
+/** Stone-pad center on the ground. Null when the card does not face down toward it. */
 function padCenter(face: Node): Vec3 | null {
   face.updateWorldTransform();
   const rot = face.worldRotation;

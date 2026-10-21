@@ -249,7 +249,7 @@ fn placeBip node p = (
         true
     )
 )
-fn aimLink bone child target = (
+fn applyAim bone child target signed = (
     if bone == undefined or child == undefined or target == undefined then return false
     local a = bipPos bone
     local b = bipPos child
@@ -262,26 +262,134 @@ fn aimLink bone child target = (
     local curN = cur / curLen
     local wantN = want / wantLen
     local axis = cross curN wantN
-    local d = dot curN wantN
-    if d > 1.0 do d = 1.0
-    if d < -1.0 do d = -1.0
-    local ang = acos d
+    local dotv = dot curN wantN
+    if dotv > 1.0 do dotv = 1.0
+    if dotv < -1.0 do dotv = -1.0
+    local ang = acos dotv
     if (length axis) > 0.0001 and ang > 0.25 do (
         local ax = axis / (length axis)
-        in coordsys world rotate bone (angleaxis ang ax)
+        if signed then (
+            local origQ = biped.getTransform bone #rotation
+            local baseD = distance b target
+            in coordsys world rotate bone (angleaxis ang ax)
+            local dPlus = distance (bipPos child) target
+            biped.setTransform bone #rotation origQ false
+            in coordsys world rotate bone (angleaxis -ang ax)
+            local dMinus = distance (bipPos child) target
+            biped.setTransform bone #rotation origQ false
+            if dPlus <= dMinus and dPlus <= baseD + 0.2 then (
+                in coordsys world rotate bone (angleaxis ang ax)
+            ) else if dMinus < dPlus and dMinus <= baseD + 0.2 then (
+                in coordsys world rotate bone (angleaxis -ang ax)
+            )
+        ) else (
+            in coordsys world rotate bone (angleaxis ang ax)
+        )
     )
     a = bipPos bone
     b = bipPos child
     if a == undefined or b == undefined then return false
-    curLen = distance a b
-    wantLen = distance a target
-    if curLen > 0.001 and abs (wantLen - curLen) > 0.4 do (
-        local sc = biped.getTransform bone #scale
-        local f = wantLen / curLen
+    local curLen2 = distance a b
+    local wantLen2 = distance a target
+    if curLen2 > 0.001 and abs (wantLen2 - curLen2) > 0.4 do (
+        local sc0 = biped.getTransform bone #scale
+        local beforeS = distance (bipPos child) target
+        local f = wantLen2 / curLen2
         if f < 0.25 do f = 0.25
         if f > 5.0 do f = 5.0
-        biped.setTransform bone #scale [sc.x * f, sc.y, sc.z] false
+        biped.setTransform bone #scale [sc0.x * f, sc0.y, sc0.z] false
+        if signed and (distance (bipPos child) target) > beforeS + 0.2 do (
+            biped.setTransform bone #scale sc0 false
+        )
     )
+    true
+)
+fn poseLeg thigh calf foot toeN knee ankle toe signed = (
+    if thigh == undefined or calf == undefined or foot == undefined or toeN == undefined then return false
+    for i = 1 to 4 do (
+        applyAim thigh calf knee signed
+        applyAim calf foot ankle signed
+        applyAim foot toeN toe signed
+    )
+    local qT = biped.getTransform thigh #rotation
+    local scT = biped.getTransform thigh #scale
+    local qC = biped.getTransform calf #rotation
+    local scC = biped.getTransform calf #scale
+    local qF = biped.getTransform foot #rotation
+    local scF = biped.getTransform foot #scale
+    local qO = biped.getTransform toeN #rotation
+    local scO = biped.getTransform toeN #scale
+    local bestErr = 1e9
+    local bestAng = 0.0
+    for ang = -180.0 to 180.0 by 15.0 do (
+        biped.setTransform thigh #rotation qT false
+        biped.setTransform thigh #scale scT false
+        biped.setTransform calf #rotation qC false
+        biped.setTransform calf #scale scC false
+        biped.setTransform foot #rotation qF false
+        biped.setTransform foot #scale scF false
+        biped.setTransform toeN #rotation qO false
+        biped.setTransform toeN #scale scO false
+        if abs ang > 0.1 and abs (abs ang - 180.0) > 0.1 do (
+            in coordsys local rotate thigh (angleaxis ang [1,0,0])
+        )
+        local ferr = distance (bipPos foot) ankle
+        if ferr < bestErr do (
+            bestErr = ferr
+            bestAng = ang
+        )
+    )
+    biped.setTransform thigh #rotation qT false
+    biped.setTransform thigh #scale scT false
+    biped.setTransform calf #rotation qC false
+    biped.setTransform calf #scale scC false
+    biped.setTransform foot #rotation qF false
+    biped.setTransform foot #scale scF false
+    biped.setTransform toeN #rotation qO false
+    biped.setTransform toeN #scale scO false
+    if abs bestAng > 0.1 and abs (abs bestAng - 180.0) > 0.1 do (
+        in coordsys local rotate thigh (angleaxis bestAng [1,0,0])
+    )
+    for i = 1 to 3 do applyAim foot toeN toe signed
+    note ("twist " + thigh.name + " " + (bestAng as string))
+    true
+)
+fn bendCalf calf foot ankle = (
+    if calf == undefined or foot == undefined or ankle == undefined then return false
+    local qC = biped.getTransform calf #rotation
+    local scC = biped.getTransform calf #scale
+    local best = distance (bipPos foot) ankle
+    local bestAx = [0,0,1]
+    local bestAng = 0.0
+    local bestF = 1.0
+    for ax in #([0,1,0], [0,0,1]) do (
+        for ang = -120.0 to 120.0 by 20.0 do (
+            for f in #(0.8, 1.0, 1.2, 1.4, 1.7, 2.0) do (
+                biped.setTransform calf #rotation qC false
+                biped.setTransform calf #scale scC false
+                if abs ang > 0.1 do (
+                    in coordsys local rotate calf (angleaxis ang ax)
+                )
+                local scN = biped.getTransform calf #scale
+                biped.setTransform calf #scale [scN.x * f, scN.y, scN.z] false
+                local ferr = distance (bipPos foot) ankle
+                if ferr < best - 0.05 do (
+                    best = ferr
+                    bestAx = ax
+                    bestAng = ang
+                    bestF = f
+                )
+            )
+        )
+    )
+    biped.setTransform calf #rotation qC false
+    biped.setTransform calf #scale scC false
+    if abs bestAng > 0.1 do (
+        in coordsys local rotate calf (angleaxis bestAng bestAx)
+    )
+    local scDone = biped.getTransform calf #scale
+    biped.setTransform calf #scale [scDone.x * bestF, scDone.y, scDone.z] false
+    note ("bend " + calf.name + " ang " + (bestAng as string) + " f " + (bestF as string) + " err " + (best as string))
     true
 )
 
@@ -487,21 +595,62 @@ try (
     local kneeR = mirrorX kneeL
     local ankleR = mirrorX ankleL
     local toeR = mirrorX toeL
-    for i = 1 to 5 do (
-        aimLink (partName (leftTag + " Clavicle")) (partName (leftTag + " UpperArm")) shoulderL
-        aimLink (partName (leftTag + " UpperArm")) (partName (leftTag + " Forearm")) elbowL
-        aimLink (partName (leftTag + " Forearm")) (partName (leftTag + " Hand")) wristL
-        aimLink (partName (leftTag + " Hand")) (partName (leftTag + " Finger0")) fistL
-        aimLink (partName (rightTag + " Clavicle")) (partName (rightTag + " UpperArm")) shoulderR
-        aimLink (partName (rightTag + " UpperArm")) (partName (rightTag + " Forearm")) elbowR
-        aimLink (partName (rightTag + " Forearm")) (partName (rightTag + " Hand")) wristR
-        aimLink (partName (rightTag + " Hand")) (partName (rightTag + " Finger0")) fistR
-        aimLink (partName (leftTag + " Thigh")) (partName (leftTag + " Calf")) kneeL
-        aimLink (partName (leftTag + " Calf")) (partName (leftTag + " Foot")) ankleL
-        aimLink (partName (leftTag + " Foot")) (partName (leftTag + " Toe0")) toeL
-        aimLink (partName (rightTag + " Thigh")) (partName (rightTag + " Calf")) kneeR
-        aimLink (partName (rightTag + " Calf")) (partName (rightTag + " Foot")) ankleR
-        aimLink (partName (rightTag + " Foot")) (partName (rightTag + " Toe0")) toeR
+    local signed = false
+    local sh = shoulderL
+    local el = elbowL
+    local wr = wristL
+    local fi = fistL
+    local kn = kneeL
+    local an = ankleL
+    local toeP = toeL
+    local thighN = undefined
+    local calfN = undefined
+    local footN = undefined
+    local toeN = undefined
+    for pass in #("R", "L") do (
+        signed = (pass == "R")
+        sh = shoulderL
+        el = elbowL
+        wr = wristL
+        fi = fistL
+        if pass == rightTag do (
+            sh = shoulderR
+            el = elbowR
+            wr = wristR
+            fi = fistR
+        )
+        for i = 1 to 5 do (
+            applyAim (partName (pass + " Clavicle")) (partName (pass + " UpperArm")) sh signed
+            applyAim (partName (pass + " UpperArm")) (partName (pass + " Forearm")) el signed
+            applyAim (partName (pass + " Forearm")) (partName (pass + " Hand")) wr signed
+            applyAim (partName (pass + " Hand")) (partName (pass + " Finger0")) fi signed
+        )
+        if signed do (
+            bendCalf (partName (pass + " Clavicle")) (partName (pass + " UpperArm")) sh
+            for i = 1 to 4 do (
+                applyAim (partName (pass + " UpperArm")) (partName (pass + " Forearm")) el signed
+                applyAim (partName (pass + " Forearm")) (partName (pass + " Hand")) wr signed
+                applyAim (partName (pass + " Hand")) (partName (pass + " Finger0")) fi signed
+            )
+        )
+    )
+    for pass in #("R", "L") do (
+        signed = (pass == "R")
+        kn = kneeL
+        an = ankleL
+        toeP = toeL
+        if pass == rightTag do (
+            kn = kneeR
+            an = ankleR
+            toeP = toeR
+        )
+        thighN = partName (pass + " Thigh")
+        calfN = partName (pass + " Calf")
+        footN = partName (pass + " Foot")
+        toeN = partName (pass + " Toe0")
+        poseLeg thighN calfN footN toeN kn an toeP signed
+        bendCalf calfN footN an
+        for i = 1 to 3 do applyAim footN toeN toeP false
     )
     fn logFit tag node target = (
         if node == undefined or target == undefined then (
@@ -517,6 +666,13 @@ try (
     logFit "kneeL" (partName (leftTag + " Calf")) kneeL
     logFit "ankleL" (partName (leftTag + " Foot")) ankleL
     logFit "toeL" (partName (leftTag + " Toe0")) toeL
+    logFit "shoulderR" (partName (rightTag + " UpperArm")) shoulderR
+    logFit "elbowR" (partName (rightTag + " Forearm")) elbowR
+    logFit "wristR" (partName (rightTag + " Hand")) wristR
+    logFit "fistR" (partName (rightTag + " Finger0")) fistR
+    logFit "kneeR" (partName (rightTag + " Calf")) kneeR
+    logFit "ankleR" (partName (rightTag + " Foot")) ankleR
+    logFit "toeR" (partName (rightTag + " Toe0")) toeR
     logFit "head" (partName "Head") headP
 
     local figErr = 0.0

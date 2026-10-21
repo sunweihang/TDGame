@@ -35,6 +35,17 @@ const COATS = [
 ];
 const GATE_GAP = 4;
 
+let _spawn = true;
+
+/** GM switch. Already spawned monsters stay; new ones wait until this is on. */
+export function monsterSpawning(): boolean {
+  return _spawn;
+}
+
+export function setMonsterSpawning(on: boolean): void {
+  _spawn = on;
+}
+
 @ccclass('MonsterField')
 export class MonsterField extends Component {
   private _prefab: Prefab | null = null;
@@ -69,6 +80,7 @@ export class MonsterField extends Component {
   }
 
   update(): void {
+    if (!_spawn) return;
     const holder = this._holder;
     const prefab = this._prefab;
     if (!holder || !prefab || !this._albedoReady || !this._glowReady) return;
@@ -153,6 +165,7 @@ export class MonsterField extends Component {
     const unit = root.addComponent(MonsterUnit);
     unit.size = size;
     unit.hp = heavy ? 7000 : 2800;
+    unit.maxHp = unit.hp;
     unit.bite = heavy ? 12 : 6;
     unit.follow(route, mover);
     mover.updateWorldTransform();

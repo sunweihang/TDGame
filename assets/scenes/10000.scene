@@ -136,9 +136,9 @@
     "_prefab": null,
     "_lpos": {
       "__type__": "cc.Vec3",
-      "x": 0,
-      "y": 0,
-      "z": 0
+      "x": -17.11,
+      "y": 42.15,
+      "z": 12.13
     },
     "_lrot": {
       "__type__": "cc.Quat",
@@ -208,10 +208,10 @@
     "_csmAdvancedOptions": false,
     "_csmLayersTransition": false,
     "_csmTransitionRange": 0.05,
-    "_shadowFixedArea": false,
-    "_shadowNear": 0.1,
-    "_shadowFar": 10,
-    "_shadowOrthoSize": 5,
+    "_shadowFixedArea": true,
+    "_shadowNear": 1,
+    "_shadowFar": 100,
+    "_shadowOrthoSize": 100,
     "_id": "td10000DirLight"
   },
   {
@@ -1686,8 +1686,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 1080,
-      "height": 1920
+      "width": 1620,
+      "height": 2880
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -2749,9 +2749,9 @@
     ],
     "value": {
       "__type__": "cc.Vec3",
-      "x": -8.901,
+      "x": -6.073,
       "y": 0,
-      "z": -30.459
+      "z": -33.287
     }
   },
   {
@@ -2956,7 +2956,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 0,
-      "y": -953,
+      "y": -960,
       "z": 0
     },
     "_lrot": {
@@ -2994,8 +2994,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 1242,
-      "height": 262
+      "width": 1693,
+      "height": 214
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",

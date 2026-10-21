@@ -13,22 +13,31 @@ import {
   Prefab,
   Quat,
   Texture2D,
+  UITransform,
   Vec3,
+  Widget,
 } from 'cc';
 import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
+import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
-import { addBaseAura } from '../effect/BaseAura.ts';
+import { warmupHpBar } from '../effect/HpBar.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
 import { TankWalkGM } from '../player/TankWalkGM.ts';
 import { TurretGun } from '../turret/TurretGun.ts';
 import { TurretPlacer } from '../turret/TurretPlacer.ts';
 import { MonsterField } from '../monster/MonsterField.ts';
+import { addBaseGem, mountBaseGems } from '../effect/BaseGem.ts';
+import { tickWallFlash } from '../effect/WallFlash.ts';
 
 const { ccclass } = _decorator;
 
 const SLOT_FACE = 'a7c3e891-4b52-4d6e-9f10-8c2a5d7e1b34';
 const LIGHT_SHAFT = 'd9f3a6c2-1e47-4b85-a0d3-8c5e2f1b6a33';
 const SHAFT_TEX = 'c1d4e8a0-7b32-4f91-9c55-6e2a1b0d4f10@6c48a';
+
+/** Painted castle, design pixels. Wider than the plate so both screen edges stay covered. */
+const WALL_W = 1693;
+const WALL_H = 214;
 
 /** Centers of the eight plant marks, in world meters. First is highest on screen. */
 const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
@@ -37,8 +46,8 @@ const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
   [17.862, -12.534],
   [-6.196, 3.79],
   [-0.505, -10.573],
-  [-21.656, -3.328],
-  [-8.901, -30.459],
+  [-25.432, -5.108],
+  [-6.073, -33.287],
   [-31.968, -26.844],
 ];
 
@@ -107,11 +116,46 @@ function mountLight(scene: Node): void {
   });
 }
 
+/**
+ * Cascaded shadows follow a perspective frustum. This camera is orthographic,
+ * so that box misses the lower and side parts of the view and the shadow drops
+ * out. A fixed box in light space covers the whole painted ground instead.
+ * The placement plane stays 60 m. This catcher is only the shadow receiver.
+ */
+function mountShadowCatcher(scene: Node): void {
+  const lamp = scene.getChildByName('Main Light');
+  const light = lamp?.getComponent(DirectionalLight);
+  if (light && lamp) {
+    light.shadowFixedArea = true;
+    light.shadowOrthoSize = 100;
+    light.shadowNear = 1;
+    light.shadowFar = 100;
+    lamp.setPosition(-17.11, 42.15, 12.13);
+  }
+  const ground = scene.getChildByName('Ground');
+  const plane = ground?.getChildByName('Plane');
+  const source = plane?.getComponent(MeshRenderer);
+  if (!ground || !plane || !source?.mesh) return;
+  source.enabled = false;
+  if (ground.getChildByName('ShadowCatcher')) return;
+  const catcher = new Node('ShadowCatcher');
+  catcher.layer = plane.layer;
+  ground.addChild(catcher);
+  catcher.setPosition(-3.75, 0.02, -11);
+  catcher.setScale(18, 1, 18);
+  const mr = catcher.addComponent(MeshRenderer);
+  mr.mesh = source.mesh;
+  const mat = source.getSharedMaterial(0);
+  if (mat) mr.setSharedMaterial(mat, 0);
+  mr.shadowCastingMode = MeshRenderer.ShadowCastingMode.OFF;
+  mr.shadowReceivingMode = MeshRenderer.ShadowReceivingMode.ON;
+}
+
 /** The eight bases are slot-face prefabs in the scene. Place them only if missing. */
 function mountSlots(scene: Node): void {
   const slots = scene.children.filter(isSlot);
   if (slots.length) {
-    for (const slot of slots) addBaseAura(slot);
+    mountBaseGems(scene);
     return;
   }
   assetManager.loadAny({ uuid: SLOT_FACE }, (err, asset) => {
@@ -124,7 +168,7 @@ function mountSlots(scene: Node): void {
       node.name = 'slot-face';
       node.setPosition(x, 0, z);
       scene.addChild(node);
-      addBaseAura(node);
+      addBaseGem(node);
     }
   });
 }
@@ -150,13 +194,16 @@ export class GameBootstrap extends Component {
       this._lavaFill();
       const scene = this.node.scene;
       if (scene) {
+        mountShadowCatcher(scene);
         mountSlots(scene);
         mountLight(scene);
       }
       const canvas = scene?.getChildByName('Canvas');
       if (canvas) mountDmgFont(canvas);
+      warmupHpBar();
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
       this._useOrtho();
+      this._fitFrame();
     } catch (err) {
       console.error('[GameBootstrap] 战场初始化失败', err);
       this._finishSplash();
@@ -168,7 +215,72 @@ export class GameBootstrap extends Component {
       this._cam = this.node.scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
       this._useOrtho();
     }
+    this._fitFrame();
     tickDmgFont(dt, this._cam);
+    tickWallFlash(dt, this.node.scene);
+  }
+
+  /**
+   * Show the whole route, then open the view into the painted margin until the
+   * window is full. Ortho height grows with that view, so the road stays put.
+   */
+  private _fitFrame(): void {
+    applyDesignResolution();
+    const scene = this.node.scene;
+    if (!scene) return;
+    const frame = plateFrame();
+    const visW = frame.width;
+    const visH = frame.height;
+    const uiHalf = visH * 0.5;
+    const main = this._cam;
+    if (main) {
+      applyPortraitCameraRect(main);
+      const worldHalf = 40 * (visH / DESIGN_H);
+      if (Math.abs(main.orthoHeight - worldHalf) > 0.01) main.orthoHeight = worldHalf;
+    }
+    const canvas = scene.getChildByName('Canvas');
+    const ui = canvas?.getChildByName('Camera')?.getComponent(Camera) ?? null;
+    const bg = scene.getChildByName('Background')?.getChildByName('Camera')?.getComponent(Camera) ?? null;
+    if (ui) this._fitUiCam(ui, uiHalf);
+    if (bg) this._fitUiCam(bg, uiHalf);
+    if (canvas) {
+      this._fitHud(canvas, visW, visH);
+      this._fitWall(canvas, visW);
+    }
+  }
+
+  /**
+   * The castle stays on the road at the bottom of the 1080×1920 frame.
+   * Its sprite is wider than that frame, so a wider window still meets both edges.
+   */
+  private _fitWall(canvas: Node, width: number): void {
+    const wall = canvas.getChildByName('BaseWall');
+    const ui = wall?.getComponent(UITransform);
+    if (!wall || !ui) return;
+    const wantW = Math.max(WALL_W, width);
+    const size = ui.contentSize;
+    if (Math.abs(size.width - wantW) > 0.5 || Math.abs(size.height - WALL_H) > 0.5) {
+      ui.setContentSize(wantW, WALL_H);
+    }
+    const y = -DESIGN_H * 0.5;
+    const pos = wall.position;
+    if (Math.abs(pos.x) > 0.5 || Math.abs(pos.y - y) > 0.5) wall.setPosition(0, y, 0);
+  }
+
+  /** Keep HUD widgets on the visible frame. The backdrop sprite stays the full plate. */
+  private _fitHud(canvas: Node, width: number, height: number): void {
+    const ui = canvas.getComponent(UITransform);
+    if (!ui) return;
+    const size = ui.contentSize;
+    if (Math.abs(size.width - width) < 0.5 && Math.abs(size.height - height) < 0.5) return;
+    ui.setContentSize(width, height);
+    const widgets = canvas.getComponentsInChildren(Widget);
+    for (let i = 0; i < widgets.length; i++) widgets[i].updateAlignment();
+  }
+
+  private _fitUiCam(cam: Camera, half: number): void {
+    applyPortraitCameraRect(cam);
+    if (Math.abs(cam.orthoHeight - half) > 0.01) cam.orthoHeight = half;
   }
 
   /**
@@ -187,11 +299,21 @@ export class GameBootstrap extends Component {
     cam.node.setRotationFromEuler(-45, 225, 0);
   }
 
-  /** Warm light traveling upward, so chassis and bellies pick up the lava. */
+  /** Soft daylight bouncing up off the grass onto chassis and bellies. */
   private _lavaFill(): void {
     const scene = this.node.scene;
-    if (!scene || scene.getChildByName('Lava Fill')) return;
-    const node = new Node('Lava Fill');
+    if (!scene) return;
+    const existing = scene.getChildByName('Ground Fill') ?? scene.getChildByName('Lava Fill');
+    if (existing) {
+      existing.name = 'Ground Fill';
+      const light = existing.getComponent(DirectionalLight);
+      if (light) {
+        light.color = new Color(255, 228, 196, 255);
+        light.illuminance = 4500;
+      }
+      return;
+    }
+    const node = new Node('Ground Fill');
     scene.addChild(node);
     const up = new Vec3(0, 1, 0);
     const fwd = new Vec3(0, 0, -1);
@@ -199,8 +321,8 @@ export class GameBootstrap extends Component {
     Quat.rotationTo(rot, fwd, up);
     node.setWorldRotation(rot);
     const light = node.addComponent(DirectionalLight);
-    light.color = new Color(255, 96, 48, 255);
-    light.illuminance = 6800;
+    light.color = new Color(255, 228, 196, 255);
+    light.illuminance = 4500;
     light.shadowEnabled = false;
   }
 

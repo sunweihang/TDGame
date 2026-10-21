@@ -37,7 +37,7 @@ PLANE_X = (-33.75, 26.25)
 PLANE_Z = (-41.0, 19.0)
 # Road width on the 1152-wide battlefield. Scaled when the base image changes size.
 ROAD_INNER_1152 = 54.0
-ROAD_OUTER_1152 = 88.0
+ROAD_OUTER_1152 = 140.0
 
 
 def camera_basis():
@@ -368,39 +368,102 @@ def paint_preview(base_img, blend):
     return Image.fromarray(np.clip(show, 0, 255).astype(np.uint8))
 
 
-def paint_road(base_img, blend):
-    """Worn ash road. blend is 0 on the centerline and 1 outside the shoulders."""
+def center_distance(shape, polylines):
+    """Pixel distance to the nearest centerline. 0 sits on the stroke."""
+    height, width = shape
+    road = np.zeros((height, width), np.uint8)
+    for poly in polylines:
+        if len(poly) < 2:
+            continue
+        pts = np.round(np.array(poly)).astype(np.int32)
+        cv2.polylines(road, [pts], False, 255, 1, cv2.LINE_8)
+    inv = np.where(road > 0, np.uint8(0), np.uint8(255))
+    return cv2.distanceTransform(inv, cv2.DIST_L2, 5)
+
+
+def _smoothstep(edge0, edge1, x):
+    span = edge1 - edge0
+    if abs(span) < 1e-6:
+        return np.zeros_like(x, dtype=np.float32)
+    t = np.clip((x - edge0) / span, 0, 1)
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _field_noise(rng, height, width, sh, sw):
+    grid = rng.random((max(2, sh), max(2, sw)), dtype=np.float32)
+    image = Image.fromarray((grid * 255.0).astype(np.uint8), "L")
+    image = image.resize((width, height), Image.Resampling.BICUBIC)
+    return np.asarray(image).astype(np.float32) / 255.0
+
+
+def _stamp_pebble(img, x, y, rng):
+    """Small stone with a contact shadow and an upper-left highlight."""
+    h, w = img.shape[:2]
+    rx = int(rng.integers(2, 5))
+    ry = max(1, int(round(rx * float(rng.uniform(0.62, 1.2)))))
+    rad = max(rx, ry) + 4
+    x0 = int(x) - rad
+    y0 = int(y) - rad
+    if x0 < 1 or y0 < 1 or x0 + rad * 2 + 1 >= w or y0 + rad * 2 + 1 >= h:
+        return
+    side = rad * 2 + 1
+    body = np.zeros((side, side), np.uint8)
+    shade = np.zeros((side, side), np.uint8)
+    lit = np.zeros((side, side), np.uint8)
+    angle = float(rng.uniform(0, 180))
+    center = (rad, rad)
+    cv2.ellipse(shade, (rad + 2, rad + 2), (rx, ry), angle, 0, 360, 255, -1)
+    cv2.ellipse(body, center, (rx, ry), angle, 0, 360, 255, -1)
+    cv2.ellipse(lit, (rad - max(1, rx // 3), rad - max(1, ry // 3)), (max(1, rx // 2), max(1, ry // 2)), angle, 0, 360, 255, -1)
+    win = img[y0:y0 + side, x0:x0 + side]
+    win[shade > 0] *= 0.62
+    if rng.random() < 0.7:
+        color = np.array([64.0, 58.0, 50.0]) + rng.normal(0, 7, 3)
+        highlight = color + np.array([32.0, 28.0, 22.0])
+    else:
+        color = np.array([158.0, 146.0, 128.0]) + rng.normal(0, 8, 3)
+        highlight = np.minimum(color + 34.0, 220.0)
+    win[body > 0] = win[body > 0] * 0.22 + color
+    win[lit > 0] = win[lit > 0] * 0.35 + highlight * 0.65
+
+
+def paint_road(base_img, dist):
+    """Packed earth center, dust shoulder, gravel that thins out into the ground.
+
+    dist is the pixel distance to the centerline from center_distance.
+    """
     base = np.asarray(base_img).astype(np.float32)
-    height, width = blend.shape
+    height, width = dist.shape
+    scale = width / 1152.0
     rng = np.random.default_rng(7)
-    noise = rng.integers(0, 255, (height // 3, width // 3), np.uint8)
-    noise = np.asarray(Image.fromarray(noise).resize((width, height), Image.Resampling.BILINEAR), np.float32)
-    ash = np.array([186.0, 168.0, 144.0], np.float32)
-    weight = np.clip((0.78 - blend) / 0.28, 0, 1)
-    road = np.clip(base * 0.35 + ash + (noise[..., None] - 128.0) * 0.16, 0, 255)
-    center = np.clip((0.35 - blend) / 0.35, 0, 1)
-    road *= (1.0 - 0.14 * center)[..., None]
-    out = base * (1.0 - weight)[..., None] + road * weight[..., None]
-    stones = np.zeros((height, width), np.uint8)
-    shoulder = (blend > 0.22) & (blend < 0.72)
-    ys, xs = np.where(shoulder & (rng.random((height, width)) > 0.997))
-    if len(xs) > 1800:
-        pick = rng.choice(len(xs), 1800, replace=False)
-        xs, ys = xs[pick], ys[pick]
+    fine = _field_noise(rng, height, width, height // 5, width // 5)
+    wobble = _field_noise(rng, height, width, max(8, height // 56), max(8, width // 56))
+    rough = _field_noise(rng, height, width, max(8, height // 18), max(8, width // 18))
+    d = np.clip(dist + (wobble - 0.5) * 14.0 * scale + (rough - 0.5) * 5.0 * scale, 0, None)
+    s = scale
+    cover = _smoothstep(140.0 * s, 46.0 * s, d)
+    alpha = np.clip(0.58 * cover + 0.42 * np.power(cover, 1.7), 0, 1)
+    packed = _smoothstep(52.0 * s, 10.0 * s, d)
+    scuff = _field_noise(rng, height, width, max(6, height // 90), max(6, width // 90))
+    grit = (fine - 0.5) * (20.0 * (1.0 - 0.7 * packed) + 4.0)
+    ash = np.array([168.0, 146.0, 118.0], np.float32)
+    road = base * 0.5 + ash * 0.7 + grit[..., None]
+    road *= (0.9 + 0.16 * scuff)[..., None]
+    road *= (1.0 - 0.18 * packed)[..., None]
+    out = base * (1.0 - alpha)[..., None] + road * alpha[..., None]
+    ring = np.clip((d - 24.0 * s) / (34.0 * s), 0, 1) * np.clip((132.0 * s - d) / (52.0 * s), 0, 1)
+    pick = rng.random((height, width)) < (ring * 0.0075)
+    ys, xs = np.where(pick)
+    if len(xs) > 900:
+        chosen = rng.choice(len(xs), 900, replace=False)
+        xs, ys = xs[chosen], ys[chosen]
     for x, y in zip(xs.tolist(), ys.tolist()):
-        radius = int(rng.integers(2, 5))
-        color = 70 if rng.random() < 0.55 else 205
-        cv2.circle(stones, (int(x), int(y)), radius, int(color), -1)
-    stone = stones.astype(np.float32) / 255.0
-    dark = (stone > 0.2) & (stone < 0.55)
-    light = stone >= 0.55
-    out[dark] = out[dark] * 0.35 + np.array([68.0, 62.0, 56.0])
-    out[light] = out[light] * 0.25 + np.array([214.0, 200.0, 176.0])
+        _stamp_pebble(out, x, y, rng)
     red = base[:, :, 0]
     green = base[:, :, 1]
     blue = base[:, :, 2]
     lava = ((red > 145) & (red > green + 30) & (red > blue + 18)).astype(np.float32)
-    keep = (0.82 * lava * weight)[..., None]
+    keep = (0.9 * lava * np.clip(alpha, 0, 1))[..., None]
     out = out * (1.0 - keep) + base * keep
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8))
 
@@ -423,6 +486,7 @@ def build_route(sketch_img, base_img):
     inner = ROAD_INNER_1152 * (width / 1152.0)
     outer = ROAD_OUTER_1152 * (width / 1152.0)
     rgba, blend = build_mask((height, width), full, inner, outer)
+    dist = center_distance((height, width), full)
     names = unique_names(full)
     branches = []
     for name, poly in zip(names, full):
@@ -449,7 +513,7 @@ def build_route(sketch_img, base_img):
             for b in branches
         ],
     }
-    return paint_road(base_img, blend), rgba, doc, summary
+    return paint_road(base_img, dist), rgba, doc, summary
 
 
 def extract(sketch_path, base_path, work):

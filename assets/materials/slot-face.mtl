@@ -48,9 +48,9 @@
       },
       "colorScale": {
         "__type__": "cc.Vec3",
-        "x": 0.75,
-        "y": 0.75,
-        "z": 0.75
+        "x": 1,
+        "y": 1,
+        "z": 1
       },
       "mainTexture": {
         "__uuid__": "e1a04b77-3c28-4f15-9d60-8a2b5c6e1f40@6c48a",
