@@ -25,7 +25,7 @@ Fix and rerun until it prints `OK`. Do not tell the user the machine gun is fixe
 
 Parent space is the inner node `10001` with Rx(-90). That rotation stays. Do not clear it and do not also pre-rotate the FBX. Local +Z is world up. Local +Y is world -Z.
 
-- `TurretHead` local position is `(0, 0, 1.1666663885116577)`, rotation identity. The neck is this height, about 1.17 m. Do not move it to 1.51.
+- `TurretHead` local position is `(0, 0, 1.1666663885116577)`, rotation identity. The neck is this height, about 1.17 m. Do not move it to 1.01.
 - The head mesh mating ring is the minimum-Z vertices, about `(0.041, 2.033, 0.030)` in head-local space. The node origin is about 2 m away along local +Y. Yaw around the node origin swings the head off the base.
 - Yaw axis is head-local +Z, from the chain of local rotations. A stale world rotation treats local +Y as up, pins the muzzle, and lifts the head off the base.
 - `YawPivot` sits on that ring. `setParent(pivot, true)` keeps the rest pose. Each frame after the clip, put the head back on its post-reparent rest, then yaw the pivot around local +Z. The clip path `10001/TurretHead` writes `(0, 0, 1.1667)` and pulls the head off the neck if that restore is removed.

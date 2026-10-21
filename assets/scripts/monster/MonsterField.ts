@@ -166,7 +166,6 @@ export class MonsterField extends Component {
     unit.size = size;
     unit.hp = heavy ? 7000 : 2800;
     unit.maxHp = unit.hp;
-    unit.bite = heavy ? 12 : 6;
     unit.follow(route, mover);
     mover.updateWorldTransform();
   }

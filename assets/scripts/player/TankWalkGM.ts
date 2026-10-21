@@ -1,9 +1,11 @@
 import {
   _decorator,
+  BlockInputEvents,
   Color,
   Component,
   EventKeyboard,
   EventTouch,
+  Graphics,
   Input,
   KeyCode,
   Label,
@@ -31,22 +33,41 @@ const Y = 0.1;
 /** Rebuild while the heading or the frame changes, but not every tick. */
 const REBUILD = 0.16;
 
+const CHIP_W = 148;
+const CHIP_H = 68;
+const PANEL_W = 640;
+const PANEL_H = 560;
+const ROW_W = 520;
+const ROW_H = 112;
+
 const _ink = new Color(48, 230, 96, 130);
 const _inkOn = new Color(170, 255, 190, 255);
 const _inkOff = new Color(220, 230, 220, 230);
 const _edge = new Color(0, 0, 0, 255);
+const _shadeInk = new Color(0, 0, 0, 156);
+const _chipInk = new Color(16, 28, 20, 220);
+const _chipEdge = new Color(140, 190, 150, 210);
+const _cardInk = new Color(14, 24, 18, 244);
+const _cardEdge = new Color(126, 198, 146, 255);
+const _rowInk = new Color(30, 46, 36, 255);
+const _rowInkOn = new Color(34, 96, 58, 255);
+const _rowEdge = new Color(86, 140, 104, 210);
+const _rowEdgeOn = new Color(176, 255, 196, 230);
+const _closeInk = new Color(46, 36, 32, 255);
+const _closeEdge = new Color(180, 140, 110, 200);
 
 let _finger = false;
 let _linger = false;
+let _open = false;
 
-/** True while the GM button owns the pointer, including the frame it lifts. */
+/** True while a GM control owns the pointer, including the frame it lifts, or the panel is open. */
 export function walkGmHeld(): boolean {
-  return _finger || _linger;
+  return _finger || _linger || _open;
 }
 
 /**
- * Corner GM menu. G or 走区 draws the hull centers the tank may occupy.
- * 刷怪 stops new monsters. The carpet moves when the hull turns, because the
+ * Corner GM button. It opens a panel; 走区 and 刷怪 are switched inside that panel.
+ * G still toggles the walk carpet. The carpet moves when the hull turns, because the
  * camera frame and the base pads are tested with the hull rectangle.
  */
 @ccclass('TankWalkGM')
@@ -57,9 +78,15 @@ export class TankWalkGM extends Component {
   private _mr: MeshRenderer | null = null;
   private _mat: Material | null = null;
   private _lab: Label | null = null;
-  private _menu: Node | null = null;
+  private _chip: Node | null = null;
+  private _panel: Node | null = null;
+  private _shade: Node | null = null;
   private _walkLab: Label | null = null;
   private _spawnLab: Label | null = null;
+  private _walkBg: Node | null = null;
+  private _spawnBg: Node | null = null;
+  private _shadeW = 0;
+  private _shadeH = 0;
   private _wait = 0;
   private _stamp = '';
 
@@ -77,10 +104,12 @@ export class TankWalkGM extends Component {
     this._dropMesh();
     _finger = false;
     _linger = false;
+    _open = false;
   }
 
   update(dt: number): void {
     _linger = false;
+    if (this._menuOpen) this._fitShade();
     if (!this._on) return;
     this._wait -= dt;
     if (this._wait > 0) return;
@@ -100,7 +129,16 @@ export class TankWalkGM extends Component {
 
   private _toggleMenu = (): void => {
     this._menuOpen = !this._menuOpen;
-    if (this._menu) this._menu.active = this._menuOpen;
+    _open = this._menuOpen;
+    const panel = this._panel;
+    if (panel) {
+      panel.active = this._menuOpen;
+      if (this._menuOpen) {
+        panel.setSiblingIndex((panel.parent?.children.length ?? 1) - 1);
+        this._shadeW = 0;
+        this._fitShade();
+      }
+    }
     this._paint();
   };
 
@@ -121,23 +159,40 @@ export class TankWalkGM extends Component {
 
   private _paint(): void {
     if (this._lab) this._lab.color = this._menuOpen ? _inkOn : _inkOff;
+    if (this._chip) {
+      paintPlate(
+        this._chip,
+        CHIP_W,
+        CHIP_H,
+        14,
+        this._menuOpen ? _rowInkOn : _chipInk,
+        this._menuOpen ? _rowEdgeOn : _chipEdge,
+      );
+    }
     if (this._walkLab) {
-      this._walkLab.string = this._on ? '走区 开' : '走区 关';
+      this._walkLab.string = this._on ? '开' : '关';
       this._walkLab.color = this._on ? _inkOn : _inkOff;
+    }
+    if (this._walkBg) {
+      paintPlate(this._walkBg, ROW_W, ROW_H, 18, this._on ? _rowInkOn : _rowInk, this._on ? _rowEdgeOn : _rowEdge);
     }
     if (this._spawnLab) {
       const on = monsterSpawning();
-      this._spawnLab.string = on ? '刷怪 开' : '刷怪 关';
+      this._spawnLab.string = on ? '开' : '关';
       this._spawnLab.color = on ? _inkOn : _inkOff;
+    }
+    if (this._spawnBg) {
+      const on = monsterSpawning();
+      paintPlate(this._spawnBg, ROW_W, ROW_H, 18, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge);
     }
   }
 
   private _mount(canvas: Node): void {
+    const layer = canvas.layer;
     const root = new Node('tank-walk-gm');
-    root.layer = canvas.layer;
+    root.layer = layer;
     canvas.addChild(root);
-    root.setSiblingIndex(canvas.children.length - 1);
-    root.addComponent(UITransform).setContentSize(148, 68);
+    root.addComponent(UITransform).setContentSize(CHIP_W, CHIP_H);
     const widget = root.addComponent(Widget);
     widget.isAlignTop = true;
     widget.isAlignRight = true;
@@ -145,28 +200,112 @@ export class TankWalkGM extends Component {
     widget.right = 28;
     widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
     widget.updateAlignment();
-    this._lab = stampLabel(root, 'GM', 36, 44);
+    this._chip = plateNode(root, layer, 'bg', CHIP_W, CHIP_H, 14, _chipInk, _chipEdge);
+    this._lab = textNode(root, layer, 'txt', 'GM', CHIP_W, CHIP_H, 36, 44);
     bindTap(root, this._toggleMenu);
 
-    const menu = new Node('gm-menu');
-    menu.layer = canvas.layer;
-    root.addChild(menu);
-    menu.active = false;
-    this._menu = menu;
-    this._walkLab = this._option(menu, canvas.layer, 0, this._toggleWalk);
-    this._spawnLab = this._option(menu, canvas.layer, 1, this._toggleSpawn);
+    const panel = new Node('gm-panel');
+    panel.layer = layer;
+    canvas.addChild(panel);
+    panel.addComponent(BlockInputEvents);
+    const panelUi = panel.addComponent(UITransform);
+    panelUi.setAnchorPoint(0.5, 0.5);
+    const panelWidget = panel.addComponent(Widget);
+    panelWidget.isAlignTop = true;
+    panelWidget.isAlignBottom = true;
+    panelWidget.isAlignLeft = true;
+    panelWidget.isAlignRight = true;
+    panelWidget.top = 0;
+    panelWidget.bottom = 0;
+    panelWidget.left = 0;
+    panelWidget.right = 0;
+    panelWidget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
+    panelWidget.updateAlignment();
+    panel.active = false;
+    this._panel = panel;
+
+    const shade = new Node('shade');
+    shade.layer = layer;
+    panel.addChild(shade);
+    shade.addComponent(UITransform).setAnchorPoint(0.5, 0.5);
+    this._shade = shade;
+    bindTap(shade, this._toggleMenu);
+
+    const card = new Node('gm-card');
+    card.layer = layer;
+    panel.addChild(card);
+    card.addComponent(UITransform).setContentSize(PANEL_W, PANEL_H);
+    card.setPosition(0, 80, 0);
+    swallow(card);
+    plateNode(card, layer, 'bg', PANEL_W, PANEL_H, 28, _cardInk, _cardEdge);
+    const title = textNode(card, layer, 'title', 'GM', 400, 64, 44, 52);
+    title.node.setPosition(0, 198, 0);
+    title.color = _inkOn;
+
+    const walk = this._row(card, layer, 'gm-walk', '走区', 62, this._toggleWalk);
+    this._walkLab = walk.lab;
+    this._walkBg = walk.bg;
+    const spawn = this._row(card, layer, 'gm-spawn', '刷怪', -62, this._toggleSpawn);
+    this._spawnLab = spawn.lab;
+    this._spawnBg = spawn.bg;
+    this._closeRow(card, layer);
     this._paint();
   }
 
-  private _option(menu: Node, layer: number, index: number, onTap: () => void): Label {
-    const node = new Node(index === 0 ? 'gm-walk' : 'gm-spawn');
+  private _row(
+    card: Node,
+    layer: number,
+    name: string,
+    title: string,
+    y: number,
+    onTap: () => void,
+  ): { lab: Label; bg: Node } {
+    const node = new Node(name);
     node.layer = layer;
-    menu.addChild(node);
-    node.addComponent(UITransform).setContentSize(188, 68);
-    node.setPosition(-20, -76 - index * 76, 0);
-    const lab = stampLabel(node, '', 32, 40);
+    card.addChild(node);
+    node.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
+    node.setPosition(0, y, 0);
+    const bg = plateNode(node, layer, 'bg', ROW_W, ROW_H, 18, _rowInk, _rowEdge);
+    const caption = textNode(node, layer, 'name', title, 240, ROW_H, 36, 44);
+    caption.node.setPosition(-110, 0, 0);
+    caption.color = _inkOff;
+    const lab = textNode(node, layer, 'state', '', 160, ROW_H, 36, 44);
+    lab.node.setPosition(150, 0, 0);
     bindTap(node, onTap);
-    return lab;
+    return { lab, bg };
+  }
+
+  private _closeRow(card: Node, layer: number): void {
+    const node = new Node('gm-close');
+    node.layer = layer;
+    card.addChild(node);
+    node.addComponent(UITransform).setContentSize(220, 76);
+    node.setPosition(0, -198, 0);
+    plateNode(node, layer, 'bg', 220, 76, 16, _closeInk, _closeEdge);
+    const lab = textNode(node, layer, 'txt', '关闭', 220, 76, 32, 40);
+    lab.color = _inkOff;
+    bindTap(node, this._toggleMenu);
+  }
+
+  private _fitShade(): void {
+    const panel = this._panel;
+    const shade = this._shade;
+    if (!panel?.active || !shade) return;
+    panel.getComponent(Widget)?.updateAlignment();
+    const ui = panel.getComponent(UITransform);
+    if (!ui) return;
+    const w = ui.width;
+    const h = ui.height;
+    if (w < 2 || h < 2) return;
+    if (w === this._shadeW && h === this._shadeH) return;
+    this._shadeW = w;
+    this._shadeH = h;
+    shade.getComponent(UITransform)?.setContentSize(w, h);
+    const g = shade.getComponent(Graphics) ?? shade.addComponent(Graphics);
+    g.clear();
+    g.fillColor = _shadeInk;
+    g.rect(-w * 0.5, -h * 0.5, w, h);
+    g.fill();
   }
 
   private _stampOf(tank: PlayerTank): string {
@@ -227,6 +366,53 @@ export class TankWalkGM extends Component {
   }
 }
 
+function plateNode(
+  parent: Node,
+  layer: number,
+  name: string,
+  w: number,
+  h: number,
+  radius: number,
+  fill: Color,
+  edge: Color,
+): Node {
+  const node = new Node(name);
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(w, h);
+  paintPlate(node, w, h, radius, fill, edge);
+  return node;
+}
+
+function paintPlate(node: Node, w: number, h: number, radius: number, fill: Color, edge: Color): void {
+  const g = node.getComponent(Graphics) ?? node.addComponent(Graphics);
+  g.clear();
+  g.fillColor = fill;
+  g.roundRect(-w * 0.5, -h * 0.5, w, h, radius);
+  g.fill();
+  g.lineWidth = 4;
+  g.strokeColor = edge;
+  g.roundRect(-w * 0.5, -h * 0.5, w, h, radius);
+  g.stroke();
+}
+
+function textNode(
+  parent: Node,
+  layer: number,
+  name: string,
+  text: string,
+  w: number,
+  h: number,
+  size: number,
+  line: number,
+): Label {
+  const node = new Node(name);
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(w, h);
+  return stampLabel(node, text, size, line);
+}
+
 function stampLabel(node: Node, text: string, size: number, line: number): Label {
   const lab = node.addComponent(Label);
   lab.string = text;
@@ -260,6 +446,11 @@ function bindTap(node: Node, onTap: () => void): void {
     _linger = true;
     event.propagationStopped = true;
   });
+}
+
+/** Keep taps on the card from falling through to the dimmed page behind it. */
+function swallow(node: Node): void {
+  bindTap(node, () => {});
 }
 
 /** Quads over every sampled cell whose center passes the tank's walk test. */

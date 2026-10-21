@@ -36,20 +36,21 @@ const _axisX = new Vec3();
 const _axisY = new Vec3();
 const _axisZ = new Vec3();
 const _hit = new Vec3();
-const KINDS: Kind[] = ['10000', '10001', '10002', '10003'];
+const PLANT_KINDS: Kind[] = ['10000', '10002', '10004'];
 const TAP_SLOP = 36;
 const _ghostOk = new Color(57, 255, 20, 255);
 const _ghostBad = new Color(255, 96, 88, 255);
 const PLACE_GRID = '53837b38-4869-4666-ab51-403a8428a2c4';
+const TURRET_10000 = 'c4e8a1b2-7d3f-4a6e-9b10-2f5c8d7e6a01';
 const TURRET_10001 = 'd4e5f6a7-8b9c-4d0e-a1f2-10001bb10001';
 const TURRET_10002 = 'c3a91e20-6d4e-4b19-8a77-10002bb10002';
-const TURRET_10003 = 'd4b02f31-7e5f-4c2a-9b88-10003bb10003';
+const TURRET_10004 = 'e5c13a42-9b60-4d71-a088-10004bb10004';
 
-type Kind = '10000' | '10001' | '10002' | '10003';
+type Kind = '10000' | '10001' | '10002' | '10004';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
 
 /**
- * A tap on an empty base builds a random turret there.
+ * A tap on an empty base builds 10000, 10002, or 10004, chosen at random.
  * The floating crystal goes away, then the build hologram and digital rain play.
  * Square-grid placement remains for an armed turret.
  */
@@ -141,21 +142,16 @@ export class TurretPlacer extends Component {
     const grid = BattleGrid.create(plane, side.x, side.z);
     if (!grid) return;
 
-    const template = instantiate(first);
-    template.name = '10000';
-    template.active = false;
-    scene.addChild(template);
-    this._silence(template);
-    this._remember('10000', template);
     for (let i = 0; i < parked.length; i++) {
       if (parked[i].isValid) parked[i].destroy();
     }
     this._grid = grid;
     this._gun = gun;
     this._cam = cam;
+    this._load10000(scene);
     this._load10001(scene);
     this._load10002(scene);
-    this._load10003(scene);
+    this._load10004(scene);
     this._loadPad(scene);
     mountBaseGems(scene);
   }
@@ -165,9 +161,27 @@ export class TurretPlacer extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10004') found.push(kids[i]);
     }
     return found;
+  }
+
+  private _load10000(scene: Node): void {
+    if (this._packs.has('10000')) return;
+    assetManager.loadAny({ uuid: TURRET_10000 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10000 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10000';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10000', root);
+      if (this._kind === '10000') this._makeGhost();
+    });
   }
 
   private _load10001(scene: Node): void {
@@ -206,21 +220,21 @@ export class TurretPlacer extends Component {
     });
   }
 
-  private _load10003(scene: Node): void {
-    if (this._packs.has('10003')) return;
-    assetManager.loadAny({ uuid: TURRET_10003 }, (err, asset) => {
+  private _load10004(scene: Node): void {
+    if (this._packs.has('10004')) return;
+    assetManager.loadAny({ uuid: TURRET_10004 }, (err, asset) => {
       if (!this.isValid) return;
       if (err || !(asset instanceof Prefab)) {
-        console.error('[TurretPlacer] turret 10003 failed to load', err);
+        console.error('[TurretPlacer] turret 10004 failed to load', err);
         return;
       }
       const root = instantiate(asset);
-      root.name = '10003';
+      root.name = '10004';
       root.active = false;
       scene.addChild(root);
       this._silence(root);
-      this._remember('10003', root);
-      if (this._kind === '10003') this._makeGhost();
+      this._remember('10004', root);
+      if (this._kind === '10004') this._makeGhost();
     });
   }
 
@@ -417,16 +431,16 @@ export class TurretPlacer extends Component {
     return { node: best, x: bx, z: bz };
   }
 
-  private _rollKind(): Kind | null {
-    const ready: Kind[] = [];
-    for (let i = 0; i < KINDS.length; i++) {
-      if (this._packs.has(KINDS[i])) ready.push(KINDS[i]);
-    }
-    if (!ready.length) return null;
-    return ready[Math.floor(Math.random() * ready.length)];
+  /** Center the turret on the pad. Keep the prefab scale; do not stretch it to the stone. */
+  private _seatOnPad(root: Node, _slot: Node, x: number, z: number, footY: number): void {
+    root.setWorldPosition(x, footY, z);
+    const fitted = measureTurretXZ(root);
+    if (!fitted) return;
+    const p = root.worldPosition;
+    root.setWorldPosition(p.x + (x - fitted.cx), footY, p.z + (z - fitted.cz));
   }
 
-  /** Drop a random turret on this pad, clear its crystal, and play the build effect. */
+  /** Drop 10000, 10002, or 10004 on this pad, clear its crystal, and play the build effect. */
   private _plantAt(slot: Node, x: number, z: number): void {
     if (this._bases.has(slot)) return;
     const kind = this._rollKind();
@@ -446,9 +460,7 @@ export class TurretPlacer extends Component {
     root.name = kind;
     root.active = true;
     scene.addChild(root);
-    const px = x + pack.offX;
-    const pz = z + pack.offZ;
-    root.setWorldPosition(px, pack.footY, pz);
+    this._seatOnPad(root, slot, x, z, pack.footY);
     if (grid) {
       const n = TURRET_10000_CELLS.n;
       const m = TURRET_10000_CELLS.m;
@@ -460,12 +472,25 @@ export class TurretPlacer extends Component {
     const wired = this._freshGhost(pack.template);
     if (wired) {
       wired.node.active = true;
-      wired.node.setWorldPosition(px, pack.footY, pz);
+      wired.node.setScale(root.scale);
+      const seated = root.worldPosition;
+      wired.node.setWorldPosition(seated.x, seated.y, seated.z);
     }
     this._reveal(root, wired?.node ?? null, wired?.mat ?? null);
     const cell = Math.max(grid?.cellX ?? 0, grid?.cellZ ?? 0, 4.2);
     spawnPlantBeam(scene, x, z, cell, cell);
     this._lastDrop = now;
+  }
+
+  /** One of the plantable turrets that has already finished loading. */
+  private _rollKind(): Kind | null {
+    const ready: Kind[] = [];
+    for (let i = 0; i < PLANT_KINDS.length; i++) {
+      const kind = PLANT_KINDS[i];
+      if (this._packs.has(kind)) ready.push(kind);
+    }
+    if (!ready.length) return null;
+    return ready[(Math.random() * ready.length) | 0];
   }
 
   private _aim(x: number, y: number): void {

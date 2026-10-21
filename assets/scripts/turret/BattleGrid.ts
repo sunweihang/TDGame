@@ -4,7 +4,7 @@ import { Camera, MeshRenderer, Node, Vec3 } from 'cc';
 export const TURRET_10000_CELLS = { n: 1, m: 1 };
 
 /** Authored horizontal bounds of turret 10000, used if a mesh cannot be measured. */
-const FALLBACK_CELL = 4.95;
+const FALLBACK_CELL = 3.3;
 
 export type Cell = { ix: number; iz: number };
 

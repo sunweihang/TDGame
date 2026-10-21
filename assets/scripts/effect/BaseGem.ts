@@ -26,15 +26,20 @@ const LIFT = 0.5;
 const TEX = 'c3a91e70-8d24-4f55-b6e1-2a7c4d8e5f01@6c48a';
 
 /**
- * Battlefield camera is fixed at pitch -45, yaw 225.
+ * Battlefield camera is pitch -40, yaw 225, the same angle as the stone base art.
  * Up is screen-up. Toward is out of the screen, so the card does not eat the drawing.
  */
-const UP_X = 0.5;
-const UP_Y = 0.70710678118;
-const UP_Z = 0.5;
-const TO_X = -0.5;
-const TO_Y = 0.70710678118;
-const TO_Z = -0.5;
+const PITCH = -40;
+const _rad = 40 * Math.PI / 180;
+const _sin = Math.sin(_rad);
+const _cos = Math.cos(_rad);
+const _axis = Math.SQRT1_2;
+const UP_X = _axis * _sin;
+const UP_Y = _cos;
+const UP_Z = _axis * _sin;
+const TO_X = -_axis * _cos;
+const TO_Y = _sin;
+const TO_Z = -_axis * _cos;
 
 const _sealed = new Set<Node>();
 let _mesh: Mesh | null = null;
@@ -121,7 +126,7 @@ export function addBaseGem(slot: Node): void {
     STONE_Y + UP_Y * height * LIFT + TO_Y * 0.35,
     pad.z + UP_Z * height * LIFT + TO_Z * 0.35,
   );
-  root.setRotationFromEuler(-45, 225, 0);
+  root.setRotationFromEuler(PITCH, 225, 0);
   root.setScale(width, height, 1);
   root.addComponent(BaseGemView);
 }

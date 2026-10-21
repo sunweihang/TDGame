@@ -1,29 +1,26 @@
-import { _decorator, Component } from 'cc';
-import { LaserBillboard } from './LaserBillboard.ts';
+import { _decorator, Component, ParticleSystem } from 'cc';
 
 const { ccclass } = _decorator;
 
+/** Removes the flash node after the burst. Particles face the camera on their own. */
 @ccclass('LaserFlash')
 export class LaserFlash extends Component {
   life = 0.1;
   private _age = 0;
-  private _base = 1;
+  private _armed = false;
 
-  start(): void {
-    this._base = this.node.scale.x;
-    if (!this.getComponent(LaserBillboard)) this.addComponent(LaserBillboard);
+  /** Starts the countdown once the flash texture is bound. */
+  arm(): void {
+    this._armed = true;
+    this._age = 0;
   }
 
   update(dt: number): void {
+    if (!this._armed) return;
     this._age += dt;
-    const u = this._age / Math.max(this.life, 0.01);
-    if (u >= 1) {
-      this.node.destroy();
-      return;
-    }
-    const pop = 1 + u * 1.35;
-    const fade = 1 - u * 0.25;
-    const s = this._base * pop * fade;
-    this.node.setScale(s, s, s);
+    if (this._age < this.life) return;
+    const ps = this.getComponent(ParticleSystem);
+    if (ps?.isValid) ps.stop();
+    this.node.destroy();
   }
 }

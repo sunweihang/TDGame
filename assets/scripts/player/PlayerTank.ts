@@ -11,7 +11,7 @@ import {
   gfx,
   screen,
 } from 'cc';
-import { createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
+import { bulletHeight, createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
 import { clearMonsterHull, noteMonsterHull } from '../monster/MonsterSkirt.ts';
 import { mountTankStick, settleStick, stickAxis } from './TankStick.ts';
@@ -473,9 +473,9 @@ export class PlayerTank extends Component {
   }
 
   /**
-   * The hull is solid. Throttle into a body and the nose shoves it, then the
-   * tracks pull it under, flatten it, and drop it out the back. Parked tracks
-   * only push the body aside.
+   * A moving hull is solid. Throttle into a body and the nose shoves it, then
+   * the tracks pull it under, flatten it, and drop it out the back. A parked
+   * hull is not a hit.
    */
   private _plow(root: Node, dt: number): void {
     const x = root.worldPosition.x;
@@ -584,8 +584,8 @@ export class PlayerTank extends Component {
     _muzzleW.x += _dir.x * 0.12;
     _muzzleW.y += _dir.y * 0.12;
     _muzzleW.z += _dir.z * 0.12;
-    createLaserFlash(scene, _muzzleW, 0.55, 0.08);
-    spawnBullet20000(bullet, scene, _muzzleW, _dir, 2);
+    createLaserFlash(scene, _muzzleW, bulletHeight() * 0.26, 0.12);
+    spawnBullet20000(bullet, scene, _muzzleW, _dir);
   }
 }
 
@@ -694,7 +694,7 @@ function shoveOne(pos: Vec3, cos: number, sin: number, bx: number, bz: number, r
 }
 
 const _hit = {
-  mode: 'bump' as 'body' | 'bump' | 'grind',
+  mode: 'bump' as 'bump' | 'grind',
   nx: 0,
   nz: 0,
   pen: 0,
@@ -777,17 +777,13 @@ function treadContact(
   const fwd = tvx * fx + tvz * fz;
   const swallowAt = 0.12 + Math.max(0, bulk - 1) * 0.14;
   const driving = power >= 0.14 && fwd > Math.max(speed * 0.45, 1.4);
+  if (!driving) return false;
   const inFront = lz > hz && Math.abs(lx) <= hx + 0.3;
   _hit.nx = nx;
   _hit.nz = nz;
   _hit.pen = pen;
   _hit.mx = 0;
   _hit.mz = 0;
-  if (!driving) {
-    _hit.mode = 'body';
-    _hit.power = 0;
-    return true;
-  }
   if (inside || (inFront && age >= swallowAt)) {
     const slip = Math.max(3.2, fwd * (0.52 + 0.1 * Math.min(bulk, 4)));
     let gx = (tvx - fx * slip) * dt;

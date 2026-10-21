@@ -20,6 +20,7 @@ import {
 import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
 import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
+import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
 import { warmupHpBar } from '../effect/HpBar.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
 import { TankWalkGM } from '../player/TankWalkGM.ts';
@@ -201,6 +202,7 @@ export class GameBootstrap extends Component {
       const canvas = scene?.getChildByName('Canvas');
       if (canvas) mountDmgFont(canvas);
       warmupHpBar();
+      warmupMuzzleFlash();
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
       this._useOrtho();
       this._fitFrame();
@@ -284,19 +286,20 @@ export class GameBootstrap extends Component {
   }
 
   /**
-   * Orthographic diamond view. Pitch -45 and yaw 225 put the eye on the
-   * diagonal of the battlefield, so a square cell reads as a 45° isometric tile.
-   * orthoHeight matches the old 32° horizontal field at this same distance.
+   * Orthographic view along the battlefield diagonal (yaw 225).
+   * Pitch -40 matches the stone base artwork, so the turret and the pad share one angle.
+   * The eye stays 80 m from (-3.75, 0, -11).
    */
   private _useOrtho(): void {
     const cam = this._cam;
     if (!cam) return;
     cam.projection = Camera.ProjectionType.ORTHO;
     cam.orthoHeight = 40;
-    const eye = 56.57;
-    const arm = eye / Math.SQRT2;
-    cam.node.setPosition(-3.75 - arm, eye, -11 - arm);
-    cam.node.setRotationFromEuler(-45, 225, 0);
+    const pitch = 40 * Math.PI / 180;
+    const reach = 80;
+    const off = reach * Math.cos(pitch) * Math.SQRT1_2;
+    cam.node.setPosition(-3.75 - off, reach * Math.sin(pitch), -11 - off);
+    cam.node.setRotationFromEuler(-40, 225, 0);
   }
 
   /** Soft daylight bouncing up off the grass onto chassis and bellies. */

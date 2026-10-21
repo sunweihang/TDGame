@@ -17,8 +17,8 @@ import {
 const { ccclass } = _decorator;
 
 /** Stone center in slot-face-on.png, as a fraction of the card size from its center. */
-const GLOW_RIGHT = 0.0736;
-const GLOW_UP = 0.0278;
+const GLOW_RIGHT = 0.0856;
+const GLOW_UP = 0.26;
 /** Stone radius over the card width. The painted shadow sits outside this disc. */
 const DISC_HALF = 0.4003;
 /** The card is a billboard, so any height on the view ray lands on the same screen spot. */

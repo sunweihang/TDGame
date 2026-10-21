@@ -3,16 +3,14 @@ import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
 import { playBloodSpray } from '../effect/BloodSpray.ts';
 import { showDmgFont } from '../effect/DmgFont.ts';
 import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar } from '../effect/HpBar.ts';
-import { TurretPlate } from '../turret/TurretPlate.ts';
 import { pastWall, touchWall } from '../effect/WallFlash.ts';
 import { easeSkirt, skirtPlan } from './MonsterSkirt.ts';
 
 const { ccclass } = _decorator;
 
-const SPEED = 6.8;
+const SPEED = 3.4;
 const HIT_R = 1.86;
 const FOOT_Y = 0.02;
-const BODY_GAP = 3.46;
 /** Each hit rolls this. A crit deals twice the hit and pops the gold number. */
 const CRIT_CHANCE = 0.2;
 const CRIT_MUL = 2;
@@ -38,7 +36,7 @@ const _spray = new Vec3();
 const _hpAt = new Vec3();
 const _steerOut = { mul: 1, fx: 0, fz: 0 };
 
-type Phase = 'run' | 'attack' | 'dead';
+type Phase = 'run' | 'dead';
 
 function pickClip(anim: SkeletalAnimation, key: string, fallback: number): AnimationClip | null {
   const clips = anim.clips;
@@ -56,15 +54,11 @@ export class MonsterUnit extends Component {
   hp = 4200;
   maxHp = 4200;
   size = 1;
-  bite = 8;
   private _anim: SkeletalAnimation | null = null;
   private _vat: VertexAnimPlayer | null = null;
   private _run = '';
-  private _attack = '';
   private _dead = '';
   private _phase: Phase = 'run';
-  private _hurt = false;
-  private _target: TurretPlate | null = null;
   private _mover: Node | null = null;
   private _route: ReadonlyArray<readonly [number, number]> | null = null;
   private _seg = 0;
@@ -89,9 +83,9 @@ export class MonsterUnit extends Component {
   private _plowCd = 0;
   private _grind = false;
   private _wasGrind = false;
-  private _block = false;
   private _flat = 0;
-  private _holdFlat = 0;
+  /** Crushed corpse. Stays flat until the body is removed. */
+  private _stayFlat = false;
   private _posed = false;
 
   /** Walk this road. The mover is the node that actually travels; the mesh stays parented under it. */
@@ -140,12 +134,12 @@ export class MonsterUnit extends Component {
   }
 
   /**
-   * One frame of hull contact. `bump` pins the body to the plate and knocks
-   * it along `nx,nz`. `grind` drags it by `mx,mz` under the tracks. `body`
-   * is a parked hull: shove only.
+   * One frame of hull contact from a moving tank. `bump` pins the body to the
+   * plate and knocks it along `nx,nz`. `grind` drags it by `mx,mz` under the tracks.
+   * A parked hull does not call this.
    */
   plow(
-    mode: 'body' | 'bump' | 'grind',
+    mode: 'bump' | 'grind',
     nx: number,
     nz: number,
     pen: number,
@@ -155,13 +149,11 @@ export class MonsterUnit extends Component {
     dt: number,
   ): void {
     if (!this.threat || !this.node?.isValid) return;
-    const fresh = this._plowAge <= 0 || (this._block && mode !== 'body');
+    const fresh = this._plowAge <= 0;
     const wasGrind = this._wasGrind;
     this._plowHit = true;
-    if (mode === 'body') this._plowAge = 0;
-    else this._plowAge += dt;
+    this._plowAge += dt;
     this._grind = mode === 'grind';
-    this._block = mode === 'body';
     this._wasGrind = mode === 'grind';
     if (mode === 'grind') {
       this._shift(mx, mz);
@@ -176,7 +168,7 @@ export class MonsterUnit extends Component {
       this._vx = vx;
       this._vz = vz;
     } else {
-      const kick = (mode === 'bump' ? 9 * Math.max(power, 0.45) : 3.2) / this.bulk;
+      const kick = (9 * Math.max(power, 0.45)) / this.bulk;
       this._shift(nx * pen + mx, nz * pen + mz);
       this._vx = nx * kick;
       this._vz = nz * kick;
@@ -187,7 +179,7 @@ export class MonsterUnit extends Component {
       this._vz *= 11 / v;
     }
     this._bleed(mode, power, fresh, wasGrind);
-    if (!this.threat) this._holdFlat = Math.max(this._holdFlat, mode === 'grind' ? 0.55 : 0.28);
+    if (!this.threat) this._stayFlat = true;
   }
 
   damage(amount: number, rollCrit = true): void {
@@ -233,7 +225,6 @@ export class MonsterUnit extends Component {
     if (vat) {
       this._vat = vat;
       this._run = vat.clipName('run', 1);
-      this._attack = vat.clipName('attack', 0);
       this._dead = vat.clipName('dead', 2);
       this._play(this._run, AnimationClip.WrapMode.Loop);
       return;
@@ -247,10 +238,8 @@ export class MonsterUnit extends Component {
     anim.clips = clips;
     anim.stop();
     const run = pickClip(anim, 'run', 1);
-    const attack = pickClip(anim, 'attack', 0);
     const dead = pickClip(anim, 'dead', 2);
     if (run) this._run = run.name;
-    if (attack) this._attack = attack.name;
     if (dead) this._dead = dead.name;
     this._play(this._run, AnimationClip.WrapMode.Loop);
   }
@@ -267,7 +256,7 @@ export class MonsterUnit extends Component {
     }
     const route = this._route;
     if (route && this._seg < route.length - 1) this._along(dt);
-    else this._roam(dt);
+    else if (route) this._leaveAtWall();
     if (this._phase !== 'dead') this._guardWall();
     this._endPlow(dt);
     this._syncHp();
@@ -294,24 +283,10 @@ export class MonsterUnit extends Component {
     this._hp.followWorld(_hpAt, this._cam, true, HP_LIFT, 0.25);
   }
 
-  /** Stay on the road. Bite a turret only when it is already in reach. */
+  /** Stay on the road until the gate. Turrets are not a stop. */
   private _along(dt: number): void {
     const route = this._route;
     if (!route) return;
-    const here = this._world();
-    const plate = TurretPlate.nearest(here.x, here.z);
-    this._target = plate;
-    if (plate && !this._plowHit && this._plowGap <= 0) {
-      const t = plate.node.worldPosition;
-      const reach = Math.sqrt((t.x - here.x) * (t.x - here.x) + (t.z - here.z) * (t.z - here.z));
-      if (reach <= plate.reach) {
-        this._latV = 0;
-        this._face(t.x, t.z);
-        this._drop();
-        this._chop(plate);
-        return;
-      }
-    }
     const segA = route[this._seg];
     const segB = route[this._seg + 1];
     let tx = segB[0] - segA[0];
@@ -381,15 +356,16 @@ export class MonsterUnit extends Component {
     _steerOut.fz = 0;
     const rx = tz;
     const rz = -tx;
-    const lat0 = this._ox * rx + this._oz * rz;
     const flying = this._vx * this._vx + this._vz * this._vz > 0.8;
-    if (this._grind || (this._plowHit && !this._block) || flying) {
+    if (this._grind || this._plowHit || flying) {
       this._skirting = false;
       this._latV = 0;
       return _steerOut;
     }
     const route = this._route;
     if (!route) return _steerOut;
+    const framed = this._frameLateral(tx, tz, rx, rz);
+    const lat0 = framed.lat;
     const body = this.hitRadius * 0.74 + 0.75;
     const plan = skirtPlan(route, this._seg, this._into, lat0, this._pass, body);
     let want = plan.want;
@@ -397,8 +373,8 @@ export class MonsterUnit extends Component {
     const eased = easeSkirt(lat0, this._latV, want, plan.tight, dt);
     const lat = eased.lat;
     this._latV = eased.vel;
-    this._ox = rx * lat;
-    this._oz = rz * lat;
+    this._ox = rx * lat + tx * framed.along;
+    this._oz = rz * lat + tz * framed.along;
     this._pass = plan.blocked || Math.abs(lat) > 0.12 ? plan.pass : 0;
     this._skirting = plan.blocked || Math.abs(lat) > 0.08 || Math.abs(this._latV) > 0.2;
     const spd = SPEED * this._pace();
@@ -408,6 +384,32 @@ export class MonsterUnit extends Component {
     _steerOut.fx = tx * along + rx * latVel;
     _steerOut.fz = tz * along + rz * latVel;
     return _steerOut;
+  }
+
+  /**
+   * Signed meters off this segment. A bend leaves some of the old offset
+   * pointing along the new road; that part stays on the body and is walked
+   * into the anchor only while it still fits on this segment, so the feet do not jump.
+   */
+  private _frameLateral(tx: number, tz: number, rx: number, rz: number): { lat: number; along: number } {
+    const along0 = this._ox * tx + this._oz * tz;
+    const lat = this._ox * rx + this._oz * rz;
+    const route = this._route;
+    let roomF = 0;
+    if (route && this._seg < route.length - 1) {
+      const a = route[this._seg];
+      const b = route[this._seg + 1];
+      roomF = Math.max(0, Math.hypot(b[0] - a[0], b[1] - a[1]) - this._into);
+    }
+    const roomB = Math.max(0, this._into);
+    let use = along0;
+    if (use > roomF) use = roomF;
+    if (use < -roomB) use = -roomB;
+    this._into += use;
+    const along = along0 - use;
+    this._ox = rx * lat + tx * along;
+    this._oz = rz * lat + tz * along;
+    return { lat, along };
   }
 
   /** Fan monsters already on the open side so they do not stack on one track. */
@@ -452,28 +454,10 @@ export class MonsterUnit extends Component {
     return next;
   }
 
-  private _roam(dt: number): void {
-    const here = this._world();
-    const plate = TurretPlate.nearest(here.x, here.z);
-    this._target = plate;
-    if (!plate) return;
-    const t = plate.node.worldPosition;
-    const dx = t.x - here.x;
-    const dz = t.z - here.z;
-    const dist = Math.sqrt(dx * dx + dz * dz);
-    this._face(t.x, t.z);
-    if (dist > plate.reach) {
-      this._step(dx, dz, dist, dt);
-      return;
-    }
-    this._chop(plate);
-  }
-
   private _pace(): number {
     if (this._skirting && !this._grind) return 1;
     if (!this._plowHit && this._plowGap <= 0) return 1;
     if (this._grind) return 0.05;
-    if (this._block) return 0.2;
     return 0.46;
   }
 
@@ -491,7 +475,6 @@ export class MonsterUnit extends Component {
     this._plowAge = 0;
     this._wasGrind = false;
     this._grind = false;
-    this._block = false;
   }
 
   private _coast(dt: number): void {
@@ -515,11 +498,9 @@ export class MonsterUnit extends Component {
     if (Math.abs(this._oz) < 0.012) this._oz = 0;
   }
 
-  /** Flat under the tracks, then ease back up. Feet stay on the ground. */
+  /** Flat under the tracks, then ease back up. A crushed corpse keeps that shape. */
   private _pose(dt: number): void {
-    if (this._holdFlat > 0) this._holdFlat -= dt;
-    const pressed = this._plowHit || this._plowGap > 0;
-    const want = this._holdFlat > 0 ? 1 : pressed && this._grind ? 1 : pressed ? 0.36 : 0;
+    const want = this._stayFlat || this._grind ? 1 : 0;
     const rate = want > this._flat ? 22 : 3.2;
     this._flat += (want - this._flat) * Math.min(1, rate * dt);
     const f = this._flat;
@@ -534,12 +515,12 @@ export class MonsterUnit extends Component {
     const y = 1 - 0.72 * f;
     const xz = 1 + 0.34 * f;
     this.node.setScale(this.size * xz, this.size * y, this.size * xz);
-    const wobble = this._grind ? Math.sin(this._plowAge * 36) * 9 * f : 0;
-    this.node.setRotationFromEuler(36 * f, 0, wobble);
+    const wobble = this._grind && !this._stayFlat ? Math.sin(this._plowAge * 36) * 4 * f : 0;
+    this.node.setRotationFromEuler(0, 0, wobble);
   }
 
-  private _bleed(mode: 'body' | 'bump' | 'grind', power: number, fresh: boolean, wasGrind: boolean): void {
-    if (mode === 'body' || power < 0.15) return;
+  private _bleed(mode: 'bump' | 'grind', power: number, fresh: boolean, wasGrind: boolean): void {
+    if (power < 0.15) return;
     let amount = 0;
     if (fresh && this._plowCd <= 0) amount += mode === 'grind' ? PLOW_BURST + PLOW_FLATTEN : PLOW_BURST;
     if (mode === 'grind' && !wasGrind && !fresh) amount += PLOW_FLATTEN;
@@ -697,76 +678,6 @@ export class MonsterUnit extends Component {
     node.lookAt(_look);
   }
 
-  private _step(dx: number, dz: number, dist: number, dt: number): void {
-    if (this._phase !== 'run') {
-      this._phase = 'run';
-      this._play(this._run, AnimationClip.WrapMode.Loop);
-    }
-    const scale = SPEED * dt / Math.max(dist, 0.001);
-    const here = this._world();
-    let x = here.x + dx * scale;
-    let z = here.z + dz * scale;
-    const others = MonsterUnit.all;
-    for (let i = 0; i < others.length; i++) {
-      const other = others[i];
-      if (other === this || !other.threat) continue;
-      const op = other._world();
-      const ox = x - op.x;
-      const oz = z - op.z;
-      const d2 = ox * ox + oz * oz;
-      const gap = (this.size + other.size) * 0.5 * BODY_GAP;
-      if (d2 > gap * gap || d2 < 1e-6) continue;
-      const push = (gap - Math.sqrt(d2)) * 0.45;
-      const inv = 1 / Math.sqrt(d2);
-      x += ox * inv * push;
-      z += oz * inv * push;
-    }
-    this._ox = 0;
-    this._oz = 0;
-    this._placeRaw(x, z);
-  }
-
-  private _chop(plate: TurretPlate): void {
-    if (this._phase !== 'attack') {
-      this._phase = 'attack';
-      this._hurt = false;
-      this._play(this._attack, AnimationClip.WrapMode.Normal);
-    }
-    const clock = this._clock();
-    if (!clock) return;
-    if (clock.playing) {
-      if (!this._hurt && clock.duration > 0 && clock.time > clock.duration * 0.62) {
-        this._hurt = true;
-        plate.damage(this.bite);
-      }
-      return;
-    }
-    if (clock.time <= 0) return;
-    this._hurt = false;
-    this._replayAttack();
-  }
-
-  private _clock(): { time: number; duration: number; playing: boolean } | null {
-    const vat = this._vat;
-    if (vat) return { time: vat.time, duration: vat.duration, playing: vat.isPlaying };
-    const anim = this._anim;
-    if (!anim || !this._attack) return null;
-    const state = anim.getState(this._attack);
-    if (!state) return null;
-    return { time: state.time, duration: state.duration, playing: state.isPlaying };
-  }
-
-  private _replayAttack(): void {
-    if (this._vat) {
-      this._vat.replay();
-      return;
-    }
-    const state = this._anim?.getState(this._attack);
-    if (!state) return;
-    state.time = 0;
-    state.play();
-  }
-
   /** Feet on the castle side of the gate. `slack` still counts grass just in front. */
   private _feetInWall(slack = 0): boolean {
     const route = this._route;
@@ -805,6 +716,7 @@ export class MonsterUnit extends Component {
     this.hp = 0;
     this._vx = 0;
     this._vz = 0;
+    if (this._grind || this._flat > 0.35) this._stayFlat = true;
     this._play(this._dead, AnimationClip.WrapMode.Normal);
     this.scheduleOnce(() => {
       const mover = this._mover;

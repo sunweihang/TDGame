@@ -67,7 +67,7 @@ if (head && barrel && base) {
   const headPos = vec(head, '_lpos');
   const headRot = vec(head, '_lrot');
   if (!headPos || !near(headPos.x, 0) || !near(headPos.y, 0) || !near(headPos.z, NECK)) {
-    fail('TurretHead must stay at the neck (0, 0, 1.1666663885116577), not at y = 1.51');
+    fail('TurretHead must stay at the neck (0, 0, 1.1666663885116577), not at y = 1.01');
   }
   if (!headRot || !near(headRot.x, 0) || !near(headRot.y, 0) || !near(headRot.z, 0) || !near(headRot.w, 1)) {
     fail('TurretHead rest rotation must stay identity or the neck pivot tilts the head off the base');

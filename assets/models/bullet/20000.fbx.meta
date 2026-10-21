@@ -1,0 +1,96 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0",
+  "files": [],
+  "subMetas": {
+    "423e7": {
+      "importer": "gltf-mesh",
+      "uuid": "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@423e7",
+      "displayName": "",
+      "id": "423e7",
+      "name": "20000.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 8
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "0172f": {
+      "importer": "gltf-material",
+      "uuid": "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@0172f",
+      "displayName": "",
+      "id": "0172f",
+      "name": "Bolt.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "988c6": {
+      "importer": "gltf-scene",
+      "uuid": "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@988c6",
+      "displayName": "",
+      "id": "988c6",
+      "name": "20000.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "fbx": {
+      "smartMaterialEnabled": true
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@423e7"
+      ],
+      "skeletons": [],
+      "textures": [],
+      "materials": [
+        "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@0172f"
+      ],
+      "scenes": [
+        "9aa84ce0-44b7-4bdc-a004-aaa6fb939fd0@988c6"
+      ]
+    }
+  }
+}

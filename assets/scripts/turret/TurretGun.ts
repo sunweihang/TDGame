@@ -17,7 +17,7 @@ import {
   game,
   gfx,
 } from 'cc';
-import { createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
+import { bulletHeight, createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
 import { TurretPlate } from './TurretPlate.ts';
 
@@ -27,8 +27,19 @@ const BULLET_20000 = '67b521f6-7e75-465a-a78e-f860d0e19013';
 const TARGET_HEIGHT = 2.35;
 const SHOT_GAP = 0.16;
 const AIM_GATE = 0.14;
-const YAW_RATE = 12;
+/** Top yaw speed. Fast enough to follow a runner, slow enough that a retarget reads as a turn. */
+const YAW_RATE = 2.8;
+/** Radians per second squared. A reverse eases off instead of snapping the other way. */
+const YAW_ACCEL = 14;
+/** Rest band in radians. Wide enough to ignore aim noise, tight enough that the bore still meets the body. */
+const YAW_DEAD = 0.012;
+/** Meters of range one radian of extra turn is worth, so the head keeps the monster it already faces. */
+const AIM_SLACK = 6;
+/** Minimum time on a target before a voluntary switch. */
+const TARGET_LOCK = 0.4;
 const RANGE = 46;
+/** 10003's nose is head-local -Y. This yaw points that nose at the yaw 225 camera, same way the stone pad faces. */
+const NOSE_10003 = -Math.PI * 0.75;
 
 const _local = new Vec3();
 const _world = new Vec3();
@@ -43,16 +54,31 @@ const _side = new Vec3();
 const _spec = new Color(200, 214, 232, 255);
 const _dust = new Color(232, 236, 244, 255);
 const STEEL_TEX: Record<string, string> = {
+  '10000': 'ef6724b5-3a8e-4bfc-b3c7-6f6667289c5e@6c48a',
   '10002': 'f76eb578-6645-4fa2-b30e-4d130d714683@6c48a',
   '10003': '828784a6-48d7-4fdc-b793-ad632cb4261c@6c48a',
+  '10004': 'a8c24d31-5e70-4f19-b642-10004skin004@6c48a',
 };
 const _steel = new Map<string, Texture2D>();
 const _steelWait = new Map<string, Node[]>();
 
-function applySteel(root: Node, tex: Texture2D): void {
+function keepsOwnSkin(root: Node, mr: MeshRenderer): boolean {
+  if (mr.node.name !== 'TurretBase') return false;
+  return root.name === '10002' || root.name === '10000';
+}
+
+/** 10004 keeps 10003's round pedestal, so that mesh keeps 10003's paint. */
+function steelFor(root: Node, mr: MeshRenderer): string | undefined {
+  if (keepsOwnSkin(root, mr)) return undefined;
+  if (root.name === '10004' && mr.node.name === 'TurretBase') return STEEL_TEX['10003'];
+  return STEEL_TEX[root.name];
+}
+
+function applySteel(root: Node, uuid: string, tex: Texture2D): void {
   const renderers = root.getComponentsInChildren(MeshRenderer);
   for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
+    if (steelFor(root, mr) !== uuid) continue;
     const slots = mr.sharedMaterials.length;
     for (let s = 0; s < slots; s++) {
       mr.getSharedMaterial(s)?.setProperty('mainTexture', tex);
@@ -64,7 +90,7 @@ function applySteel(root: Node, tex: Texture2D): void {
 function loadSteel(root: Node, uuid: string): void {
   const ready = _steel.get(uuid);
   if (ready) {
-    applySteel(root, ready);
+    applySteel(root, uuid, ready);
     return;
   }
   const waiting = _steelWait.get(uuid);
@@ -80,17 +106,22 @@ function loadSteel(root: Node, uuid: string): void {
     _steel.set(uuid, asset);
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
-      if (node.isValid) applySteel(node, asset);
+      if (node.isValid) applySteel(node, uuid, asset);
     }
   });
 }
 
 function toneTurret(root: Node): void {
-  const steelId = STEEL_TEX[root.name];
-  const steel = steelId ? _steel.get(steelId) : undefined;
+  const needed = new Set<string>();
   const renderers = root.getComponentsInChildren(MeshRenderer);
   for (let i = 0; i < renderers.length; i++) {
+    const id = steelFor(root, renderers[i]);
+    if (id) needed.add(id);
+  }
+  for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
+    const steelId = steelFor(root, mr);
+    const steel = steelId ? _steel.get(steelId) : undefined;
     const slots = mr.sharedMaterials.length;
     for (let s = 0; s < slots; s++) {
       const src = mr.getSharedMaterial(s);
@@ -107,7 +138,9 @@ function toneTurret(root: Node): void {
       mr.setSharedMaterial(mat, s);
     }
   }
-  if (steelId && !steel) loadSteel(root, steelId);
+  for (const id of needed) {
+    if (!_steel.get(id)) loadSteel(root, id);
+  }
 }
 
 type Cap = { center: Vec3; dir: Vec3; spread: number };
@@ -130,8 +163,10 @@ type Gun = {
   /** Barrel child. Its clip keeps a neck-height Z that drops the mesh out of the head. */
   barrel: Node | null;
   barrelZ: number;
-  /** Head-local muzzle pair. Empty means one shot from `muzzle`. */
+  /** Head-local muzzle points. Empty means one shot from `muzzle`. */
   muzzles: Vec3[];
+  /** Head-local bore for each muzzle. Same length as `muzzles` when every barrel fires on its own. */
+  bores: Vec3[];
   restRot: Quat;
   restPos: Vec3;
   rawPos: Vec3;
@@ -140,6 +175,10 @@ type Gun = {
   time: number;
   cool: number;
   aim: number;
+  /** Yaw speed in radians per second. */
+  spin: number;
+  /** Seconds left before this gun may leave its target. */
+  lock: number;
   turnSign: number;
   target: MonsterUnit | null;
   plate: TurretPlate | null;
@@ -208,6 +247,14 @@ function findNode(root: Node, name: string): Node | null {
     if (hit) return hit;
   }
   return null;
+}
+
+/** Turn 10003's nose toward the camera. Aiming still yaws this same face toward a monster. */
+export function faceTurret10003(root: Node): void {
+  const head = findNode(root, 'turrethead');
+  if (!head) return;
+  Quat.fromAxisAngle(_yawQ, Vec3.UNIT_Z, NOSE_10003);
+  head.setRotation(_yawQ);
 }
 
 function collectPositions(node: Node, out: Vec3[]): void {
@@ -339,11 +386,39 @@ function averageRange(data: ArrayLike<number>, order: number[], from: number, to
   out.set(x / n, y / n, z / n);
 }
 
+/** True when this tip cluster's normals point out along the bore, not across the tube. */
+function boreFacing(normals: ArrayLike<number> | null, indices: number[], axis: number, sign: number): boolean {
+  if (!normals) return true;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let k = 0; k < indices.length; k++) {
+    const o = indices[k] * 3;
+    x += normals[o];
+    y += normals[o + 1];
+    z += normals[o + 2];
+  }
+  const comps = [x, y, z];
+  let dom = 0;
+  if (Math.abs(comps[1]) > Math.abs(comps[dom])) dom = 1;
+  if (Math.abs(comps[2]) > Math.abs(comps[dom])) dom = 2;
+  if (dom !== axis) return false;
+  return sign > 0 ? comps[axis] > 0 : comps[axis] < 0;
+}
+
 /**
  * Two muzzle centers on one barrel mesh, in mesh space.
  * A single tube such as 10001 stays one shot: its muzzle face has no wide gap.
+ * Short twins such as 10002 are wider than they are long, so the bore is the
+ * axis both mouths face, not the widest span.
  */
-function twinMuzzlePoints(data: ArrayLike<number>, outA: Vec3, outB: Vec3): boolean {
+function twinMuzzlePoints(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  outA: Vec3,
+  outB: Vec3,
+  outDir: Vec3,
+): boolean {
   const n = (data.length / 3) | 0;
   if (n < 8) return false;
   const min = [Infinity, Infinity, Infinity];
@@ -357,50 +432,61 @@ function twinMuzzlePoints(data: ArrayLike<number>, outA: Vec3, outB: Vec3): bool
     }
   }
   const span = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-  let axis = 0;
-  if (span[1] > span[axis]) axis = 1;
-  if (span[2] > span[axis]) axis = 2;
-  if (span[axis] < 0.2) return false;
-  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
-  const tip = sign > 0 ? max[axis] : min[axis];
-  const band = span[axis] * 0.18;
-  const cap: number[] = [];
-  for (let i = 0; i < n; i++) {
-    const v = data[i * 3 + axis];
-    if (sign > 0 ? v >= tip - band : v <= tip + band) cap.push(i);
-  }
-  if (cap.length < 8) return false;
-  let bestSide = -1;
-  let bestGap = 0;
-  for (let side = 0; side < 3; side++) {
-    if (side === axis) continue;
-    const vals: number[] = [];
-    for (let k = 0; k < cap.length; k++) vals.push(data[cap[k] * 3 + side]);
-    vals.sort((a, b) => a - b);
+  let bestAxis = -1;
+  let bestSpan = 0;
+  for (let axis = 0; axis < 3; axis++) {
+    if (span[axis] < 0.2) continue;
+    const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+    const tip = sign > 0 ? max[axis] : min[axis];
+    const band = span[axis] * 0.18;
+    const cap: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const v = data[i * 3 + axis];
+      if (sign > 0 ? v >= tip - band : v <= tip + band) cap.push(i);
+    }
+    if (cap.length < 8) continue;
+    let bestSide = -1;
+    let bestGap = 0;
+    for (let side = 0; side < 3; side++) {
+      if (side === axis) continue;
+      const vals: number[] = [];
+      for (let k = 0; k < cap.length; k++) vals.push(data[cap[k] * 3 + side]);
+      vals.sort((a, b) => a - b);
+      let gap = 0;
+      for (let k = 1; k < vals.length; k++) {
+        const g = vals[k] - vals[k - 1];
+        if (g > gap) gap = g;
+      }
+      if (gap > bestGap) {
+        bestGap = gap;
+        bestSide = side;
+      }
+    }
+    if (bestSide < 0 || bestGap < 0.45) continue;
+    const order = cap.slice().sort((i, j) => data[i * 3 + bestSide] - data[j * 3 + bestSide]);
+    let at = 1;
     let gap = 0;
-    for (let k = 1; k < vals.length; k++) {
-      const g = vals[k] - vals[k - 1];
-      if (g > gap) gap = g;
+    for (let k = 1; k < order.length; k++) {
+      const g = data[order[k] * 3 + bestSide] - data[order[k - 1] * 3 + bestSide];
+      if (g > gap) {
+        gap = g;
+        at = k;
+      }
     }
-    if (gap > bestGap) {
-      bestGap = gap;
-      bestSide = side;
-    }
+    const rest = order.length - at;
+    if (at < 4 || rest < 4) continue;
+    if (at < order.length * 0.3 || rest < order.length * 0.3) continue;
+    const left = order.slice(0, at);
+    const right = order.slice(at);
+    if (!boreFacing(normals, left, axis, sign) || !boreFacing(normals, right, axis, sign)) continue;
+    if (span[axis] <= bestSpan) continue;
+    bestSpan = span[axis];
+    bestAxis = axis;
+    averageRange(data, order, 0, at, outA);
+    averageRange(data, order, at, order.length, outB);
+    outDir.set(axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
   }
-  if (bestSide < 0 || bestGap < 0.45) return false;
-  const order = cap.slice().sort((i, j) => data[i * 3 + bestSide] - data[j * 3 + bestSide]);
-  let at = 1;
-  let gap = 0;
-  for (let k = 1; k < order.length; k++) {
-    const g = data[order[k] * 3 + bestSide] - data[order[k - 1] * 3 + bestSide];
-    if (g > gap) {
-      gap = g;
-      at = k;
-    }
-  }
-  if (at < 4 || order.length - at < 4) return false;
-  averageRange(data, order, 0, at, outA);
-  averageRange(data, order, at, order.length, outB);
+  if (bestAxis < 0) return false;
   const dx = outA.x - outB.x;
   const dy = outA.y - outB.y;
   const dz = outA.z - outB.z;
@@ -411,57 +497,15 @@ function axisComp(axis: number): 'x' | 'y' | 'z' {
   return axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
 }
 
-/** Two cuts that leave at least 20 vertices on both sides. The small rim gaps stay out. */
-function twoWideCuts(data: ArrayLike<number>, ids: number[], axis: number): [number, number] | null {
-  const order = ids.slice().sort((i, j) => data[i * 3 + axis] - data[j * 3 + axis]);
-  const gaps: { g: number; mid: number }[] = [];
-  for (let k = 1; k < order.length; k++) {
-    if (k < 20 || order.length - k < 20) continue;
-    const a = data[order[k - 1] * 3 + axis];
-    const b = data[order[k] * 3 + axis];
-    gaps.push({ g: b - a, mid: (a + b) * 0.5 });
-  }
-  gaps.sort((p, q) => q.g - p.g);
-  if (gaps.length < 2 || gaps[1].g < 0.08) return null;
-  const cuts = [gaps[0].mid, gaps[1].mid].sort((a, b) => a - b);
-  if (cuts[1] - cuts[0] < 0.15) return null;
-  return [cuts[0], cuts[1]];
-}
+type RadialMouth = { x: number; y: number; z: number; dx: number; dy: number };
 
-/** Drop a short tail hanging off one mouth, such as the plate rim beside the right barrels. */
-function trimCellTail(data: ArrayLike<number>, ids: number[], axis: number): number[] {
-  let order = ids.slice().sort((i, j) => data[i * 3 + axis] - data[j * 3 + axis]);
-  for (let pass = 0; pass < 3; pass++) {
-    let best = 0;
-    let at = -1;
-    for (let k = 1; k < order.length; k++) {
-      const g = data[order[k] * 3 + axis] - data[order[k - 1] * 3 + axis];
-      if (g > best) {
-        best = g;
-        at = k;
-      }
-    }
-    if (best < 0.12 || at < 0) break;
-    const left = at;
-    const right = order.length - at;
-    if (left <= right && left <= 8) {
-      order = order.slice(at);
-      continue;
-    }
-    if (right < left && right <= 8) {
-      order = order.slice(0, at);
-      continue;
-    }
-    break;
-  }
-  return order;
-}
+type GridMouth = { x: number; y: number; z: number; axis: number; sign: number };
 
 /**
- * Nine muzzle centers on turret 10003, in mesh space.
- * The mouths are a 3x3 on the barrel tip. They are fused into the face, so the twin splitter finds no gap.
+ * Nine muzzles on one flat face, such as turret 10004. The bores share one direction.
+ * Returns false unless the face resolves to exactly nine mouths.
  */
-function nineMuzzlePoints(data: ArrayLike<number>, out: Vec3[]): boolean {
+function gridMuzzlePoints(data: ArrayLike<number>, normals: ArrayLike<number> | null, out: GridMouth[]): boolean {
   const n = (data.length / 3) | 0;
   if (n < 64) return false;
   const min = [Infinity, Infinity, Infinity];
@@ -474,66 +518,192 @@ function nineMuzzlePoints(data: ArrayLike<number>, out: Vec3[]): boolean {
       if (v > max[a]) max[a] = v;
     }
   }
-  const span = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-  let axis = 0;
-  if (span[1] > span[axis]) axis = 1;
-  if (span[2] > span[axis]) axis = 2;
-  if (span[axis] < 0.2) return false;
-  const band = span[axis] * 0.04;
-  const lo: number[] = [];
-  const hi: number[] = [];
+  for (let axis = 0; axis < 3; axis++) {
+    const span = max[axis] - min[axis];
+    if (span < 0.4) continue;
+    for (let s = 0; s < 2; s++) {
+      const sign = s === 0 ? 1 : -1;
+      const tip = sign > 0 ? max[axis] : min[axis];
+      const band = span * 0.045;
+      const u = (axis + 1) % 3;
+      const v = (axis + 2) % 3;
+      const face: number[] = [];
+      for (let i = 0; i < n; i++) {
+        const t = data[i * 3 + axis];
+        if (sign > 0 ? t < tip - band : t > tip + band) continue;
+        if (normals) {
+          const nv = normals[i * 3 + axis];
+          if (sign > 0 ? nv < 0.35 : nv > -0.35) continue;
+        }
+        face.push(i);
+      }
+      if (face.length < 40) continue;
+      const radius = 0.22;
+      const seeds: { x: number; y: number; z: number; n: number }[] = [];
+      for (let k = 0; k < face.length; k++) {
+        const i = face[k];
+        const o = i * 3;
+        const px = data[o];
+        const py = data[o + 1];
+        const pz = data[o + 2];
+        const cu = data[o + u];
+        const cv = data[o + v];
+        let hit = -1;
+        let bestD = radius * radius;
+        for (let c = 0; c < seeds.length; c++) {
+          const seed = seeds[c];
+          const su = u === 0 ? seed.x : u === 1 ? seed.y : seed.z;
+          const sv = v === 0 ? seed.x : v === 1 ? seed.y : seed.z;
+          const du = cu - su;
+          const dv = cv - sv;
+          const d = du * du + dv * dv;
+          if (d < bestD) {
+            bestD = d;
+            hit = c;
+          }
+        }
+        if (hit < 0) seeds.push({ x: px, y: py, z: pz, n: 1 });
+        else {
+          const seed = seeds[hit];
+          const count = seed.n;
+          seed.x = (seed.x * count + px) / (count + 1);
+          seed.y = (seed.y * count + py) / (count + 1);
+          seed.z = (seed.z * count + pz) / (count + 1);
+          seed.n = count + 1;
+        }
+      }
+      const kept = seeds.filter((seed) => seed.n >= 8);
+      if (kept.length !== 9) continue;
+      for (let pass = 0; pass < 3; pass++) {
+        const acc = kept.map(() => ({ x: 0, y: 0, z: 0, n: 0 }));
+        for (let k = 0; k < face.length; k++) {
+          const i = face[k];
+          const o = i * 3;
+          let best = 0;
+          let bestD = Infinity;
+          for (let c = 0; c < kept.length; c++) {
+            const su = u === 0 ? kept[c].x : u === 1 ? kept[c].y : kept[c].z;
+            const sv = v === 0 ? kept[c].x : v === 1 ? kept[c].y : kept[c].z;
+            const du = data[o + u] - su;
+            const dv = data[o + v] - sv;
+            const d = du * du + dv * dv;
+            if (d < bestD) {
+              bestD = d;
+              best = c;
+            }
+          }
+          if (bestD > 0.2 * 0.2) continue;
+          acc[best].x += data[o];
+          acc[best].y += data[o + 1];
+          acc[best].z += data[o + 2];
+          acc[best].n += 1;
+        }
+        for (let c = 0; c < kept.length; c++) {
+          if (acc[c].n < 4) continue;
+          kept[c].x = acc[c].x / acc[c].n;
+          kept[c].y = acc[c].y / acc[c].n;
+          kept[c].z = acc[c].z / acc[c].n;
+        }
+      }
+      out.length = 0;
+      for (let c = 0; c < kept.length; c++) {
+        out.push({ x: kept[c].x, y: kept[c].y, z: kept[c].z, axis, sign });
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Muzzle faces of a radial gun such as 10003, in mesh space.
+ * Each barrel is a local maximum of horizontal radius. The bore points out from the hub.
+ */
+function radialMuzzlePoints(data: ArrayLike<number>, out: RadialMouth[]): boolean {
+  const n = (data.length / 3) | 0;
+  if (n < 64) return false;
+  let maxR = 0;
+  let maxZ = -Infinity;
   for (let i = 0; i < n; i++) {
-    const v = data[i * 3 + axis];
-    if (v <= min[axis] + band) lo.push(i);
-    if (v >= max[axis] - band) hi.push(i);
+    const o = i * 3;
+    const r = Math.hypot(data[o], data[o + 1]);
+    if (r > maxR) maxR = r;
+    if (data[o + 2] > maxZ) maxZ = data[o + 2];
   }
-  const cap = lo.length >= hi.length ? lo : hi;
-  if (cap.length < 60) return false;
-  const sideA = (axis + 1) % 3;
-  const sideB = (axis + 2) % 3;
-  const cutsA = twoWideCuts(data, cap, sideA);
-  const cutsB = twoWideCuts(data, cap, sideB);
-  if (!cutsA || !cutsB) return false;
-  const cells: number[][] = [[], [], [], [], [], [], [], [], []];
-  for (let k = 0; k < cap.length; k++) {
-    const i = cap[k];
-    const a = data[i * 3 + sideA];
-    const b = data[i * 3 + sideB];
-    const ca = a < cutsA[0] ? 0 : a < cutsA[1] ? 1 : 2;
-    const cb = b < cutsB[0] ? 0 : b < cutsB[1] ? 1 : 2;
-    cells[cb * 3 + ca].push(i);
+  if (maxR < 0.2 || maxZ < 0.2) return false;
+  const bins = 72;
+  const best = new Array<number>(bins).fill(0);
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    const z = data[o + 2];
+    const r = Math.hypot(data[o], data[o + 1]);
+    if (r < maxR * 0.55 || z < maxZ * 0.55) continue;
+    let b = Math.floor(((Math.atan2(data[o + 1], data[o]) + Math.PI) / (Math.PI * 2)) * bins);
+    if (b < 0) b = 0;
+    if (b >= bins) b = bins - 1;
+    if (r > best[b]) best[b] = r;
   }
+  let peakR = 0;
+  for (let i = 0; i < bins; i++) if (best[i] > peakR) peakR = best[i];
+  if (peakR < 0.2) return false;
+  const peaks: { bin: number; r: number }[] = [];
+  for (let i = 0; i < bins; i++) {
+    if (best[i] < peakR * 0.78) continue;
+    const prev = best[(i + bins - 1) % bins];
+    const next = best[(i + 1) % bins];
+    if (best[i] < prev || best[i] < next) continue;
+    peaks.push({ bin: i, r: best[i] });
+  }
+  const kept: { bin: number; r: number }[] = [];
+  for (let i = 0; i < peaks.length; i++) {
+    const peak = peaks[i];
+    const prev = kept[kept.length - 1];
+    if (prev && peak.bin - prev.bin < 5) {
+      if (peak.r > prev.r) kept[kept.length - 1] = peak;
+      continue;
+    }
+    kept.push(peak);
+  }
+  if (kept.length >= 2) {
+    const wrap = kept[0].bin + bins - kept[kept.length - 1].bin;
+    if (wrap < 5) {
+      if (kept[0].r >= kept[kept.length - 1].r) kept.pop();
+      else kept.shift();
+    }
+  }
+  if (kept.length < 3) return false;
   out.length = 0;
-  for (let c = 0; c < 9; c++) {
-    const cell = trimCellTail(data, trimCellTail(data, cells[c], sideA), sideB);
-    if (cell.length < 6) return false;
-    const point = new Vec3();
-    averageRange(data, cell, 0, cell.length, point);
-    out.push(point);
+  for (let p = 0; p < kept.length; p++) {
+    const peak = kept[p];
+    const ang = -Math.PI + ((peak.bin + 0.5) / bins) * Math.PI * 2;
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    let count = 0;
+    for (let i = 0; i < n; i++) {
+      const o = i * 3;
+      const x = data[o];
+      const y = data[o + 1];
+      const z = data[o + 2];
+      const r = Math.hypot(x, y);
+      if (r < peak.r * 0.92 || z < maxZ * 0.5) continue;
+      let d = Math.atan2(y, x) - ang;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      if (Math.abs(d) > 0.28) continue;
+      sx += x;
+      sy += y;
+      sz += z;
+      count++;
+    }
+    if (count < 4) continue;
+    sx /= count;
+    sy /= count;
+    sz /= count;
+    const len = Math.hypot(sx, sy) || 1;
+    out.push({ x: sx, y: sy, z: sz, dx: sx / len, dy: sy / len });
   }
-  if (out.length !== 9) return false;
-  // The bolt halo is wider than the real tube pitch, so the measured mouths look stacked.
-  // Push the 3x3 out from its center. Depth along the barrel stays on the muzzle plane.
-  let cx = 0;
-  let cy = 0;
-  let cz = 0;
-  for (let i = 0; i < out.length; i++) {
-    cx += out[i].x;
-    cy += out[i].y;
-    cz += out[i].z;
-  }
-  const inv = 1 / out.length;
-  cx *= inv;
-  cy *= inv;
-  cz *= inv;
-  const spread = 1.6;
-  for (let i = 0; i < out.length; i++) {
-    const p = out[i];
-    if (axis !== 0) p.x = cx + (p.x - cx) * spread;
-    if (axis !== 1) p.y = cy + (p.y - cy) * spread;
-    if (axis !== 2) p.z = cz + (p.z - cz) * spread;
-  }
-  return true;
+  return out.length >= 3;
 }
 
 @ccclass('TurretGun')
@@ -581,7 +751,7 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004') found.push(kids[i]);
     }
     return found;
   }
@@ -606,6 +776,7 @@ export class TurretGun extends Component {
       barrel: null,
       barrelZ: 0,
       muzzles: [],
+      bores: [],
       restRot: new Quat(),
       restPos: new Vec3(),
       rawPos: new Vec3(),
@@ -615,6 +786,8 @@ export class TurretGun extends Component {
       time: index * 0.35,
       cool: count > 1 ? (index * SHOT_GAP) / count : 0.45,
       aim: 0,
+      spin: 0,
+      lock: 0,
       turnSign: 1,
       target: null,
       plate: null,
@@ -623,6 +796,7 @@ export class TurretGun extends Component {
     root.updateWorldTransform();
     this._measure(gun);
     this._bindAnim(gun);
+    if (root.name === '10003') faceTurret10003(root);
     if (head) {
       gun.restPos.set(head.position);
       gun.rawPos.set(head.position);
@@ -741,7 +915,8 @@ export class TurretGun extends Component {
     }
     gun.socket = measureSocket(head, gun.yawAxis, gun.neck);
     if (gun.socket) this._seatPivot(gun);
-    if (gun.root.name === '10003') this._bindNine(gun);
+    if (gun.root.name === '10003') this._bindRadial(gun);
+    else if (gun.root.name === '10004') this._bindGrid(gun);
     else this._bindTwin(gun);
   }
 
@@ -759,7 +934,16 @@ export class TurretGun extends Component {
     } catch {
       data = null;
     }
-    if (!data || !twinMuzzlePoints(data, _local, _side)) return;
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    if (!data || !twinMuzzlePoints(data, normals, _local, _side, _dir)) return;
+    const boreX = _dir.x;
+    const boreY = _dir.y;
+    const boreZ = _dir.z;
     barrel.updateWorldTransform();
     head.updateWorldTransform();
     const left = new Vec3();
@@ -770,11 +954,17 @@ export class TurretGun extends Component {
     head.inverseTransformPoint(right, _world);
     gun.muzzles.push(left, right);
     gun.muzzle.set((left.x + right.x) * 0.5, (left.y + right.y) * 0.5, (left.z + right.z) * 0.5);
+    _dir.set(boreX, boreY, boreZ);
+    Vec3.transformQuat(_axis, _dir, barrel.worldRotation);
+    Quat.invert(_yawQ, head.worldRotation);
+    Vec3.transformQuat(gun.forward, _axis, _yawQ);
+    if (gun.forward.lengthSqr() > 1e-8) gun.forward.normalize();
   }
 
-  /** Nine mouths on 10003. Each one fires along the bore, starting at that barrel. */
-  private _bindNine(gun: Gun): void {
+  /** Nine muzzles on 10004 share one bore and fire together. */
+  private _bindGrid(gun: Gun): void {
     gun.muzzles.length = 0;
+    gun.bores.length = 0;
     const barrel = gun.barrel;
     const head = gun.head;
     if (!barrel?.isValid || !head?.isValid) return;
@@ -786,16 +976,24 @@ export class TurretGun extends Component {
     } catch {
       data = null;
     }
-    const mouths: Vec3[] = [];
-    if (!data || !nineMuzzlePoints(data, mouths)) return;
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    const mouths: GridMouth[] = [];
+    if (!data || !gridMuzzlePoints(data, normals, mouths)) return;
     barrel.updateWorldTransform();
     head.updateWorldTransform();
     let sx = 0;
     let sy = 0;
     let sz = 0;
     for (let i = 0; i < mouths.length; i++) {
+      const mouth = mouths[i];
       const local = new Vec3();
-      Vec3.transformMat4(_world, mouths[i], barrel.worldMatrix);
+      _local.set(mouth.x, mouth.y, mouth.z);
+      Vec3.transformMat4(_world, _local, barrel.worldMatrix);
       head.inverseTransformPoint(local, _world);
       gun.muzzles.push(local);
       sx += local.x;
@@ -804,6 +1002,97 @@ export class TurretGun extends Component {
     }
     const inv = 1 / mouths.length;
     gun.muzzle.set(sx * inv, sy * inv, sz * inv);
+    const bore = mouths[0];
+    _dir.set(bore.axis === 0 ? bore.sign : 0, bore.axis === 1 ? bore.sign : 0, bore.axis === 2 ? bore.sign : 0);
+    Vec3.transformQuat(_axis, _dir, barrel.worldRotation);
+    Quat.invert(_yawQ, head.worldRotation);
+    Vec3.transformQuat(gun.forward, _axis, _yawQ);
+    if (gun.forward.lengthSqr() > 1e-8) gun.forward.normalize();
+  }
+
+  /** Radial barrels on 10003. Each mouth fires along its own bore, all in one volley. */
+  private _bindRadial(gun: Gun): void {
+    gun.muzzles.length = 0;
+    gun.bores.length = 0;
+    const barrel = gun.barrel;
+    const head = gun.head;
+    if (!barrel?.isValid || !head?.isValid) return;
+    const mesh = barrel.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    const mouths: RadialMouth[] = [];
+    if (!data || !radialMuzzlePoints(data, mouths)) {
+      this._bindNose(gun, data);
+      return;
+    }
+    barrel.updateWorldTransform();
+    head.updateWorldTransform();
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    for (let i = 0; i < mouths.length; i++) {
+      const mouth = mouths[i];
+      const local = new Vec3();
+      _local.set(mouth.x, mouth.y, mouth.z);
+      Vec3.transformMat4(_world, _local, barrel.worldMatrix);
+      head.inverseTransformPoint(local, _world);
+      gun.muzzles.push(local);
+      _local.set(mouth.dx, mouth.dy, 0);
+      Vec3.transformQuat(_dir, _local, barrel.worldRotation);
+      Quat.invert(_yawQ, head.worldRotation);
+      const bore = new Vec3();
+      Vec3.transformQuat(bore, _dir, _yawQ);
+      if (bore.lengthSqr() > 1e-8) bore.normalize();
+      else bore.set(mouth.dx, mouth.dy, 0);
+      gun.bores.push(bore);
+      sx += local.x;
+      sy += local.y;
+      sz += local.z;
+    }
+    const inv = 1 / mouths.length;
+    gun.muzzle.set(sx * inv, sy * inv, sz * inv);
+    gun.forward.set(0, -1, 0);
+  }
+
+  /** This gatling's nose is the -Y tip. A 3x3 face search does not match it. */
+  private _bindNose(gun: Gun, data: ArrayLike<number> | null): void {
+    const barrel = gun.barrel;
+    const head = gun.head;
+    if (!barrel?.isValid || !head?.isValid || !data) return;
+    const n = (data.length / 3) | 0;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const y = data[i * 3 + 1];
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const span = maxY - minY;
+    if (span < 0.05) return;
+    const limit = minY + span * 0.04;
+    const tip = new Vec3();
+    let count = 0;
+    for (let i = 0; i < n; i++) {
+      const y = data[i * 3 + 1];
+      if (y > limit) continue;
+      tip.x += data[i * 3];
+      tip.y += y;
+      tip.z += data[i * 3 + 2];
+      count++;
+    }
+    if (count < 3) return;
+    tip.multiplyScalar(1 / count);
+    barrel.updateWorldTransform();
+    head.updateWorldTransform();
+    Vec3.transformMat4(_world, tip, barrel.worldMatrix);
+    head.inverseTransformPoint(gun.muzzle, _world);
+    gun.forward.set(0, -1, 0);
+    gun.muzzles.length = 0;
   }
 
   /**
@@ -819,7 +1108,8 @@ export class TurretGun extends Component {
     const minZ = barrel.getComponent(MeshRenderer)?.mesh?.struct.minPosition.z ?? 0;
     const nodeZ = barrel.position.z;
     const dropped = minZ + nodeZ < 0;
-    if ((minZ > 0.8 && nodeZ < -0.4) || (minZ > 0.05 && nodeZ < -0.4 && dropped) || (minZ < 0 && nodeZ < -0.4)) {
+    // A neck-space barrel such as 10003 starts at Z = 0. The clip still stores the neck offset.
+    if ((minZ > 0.8 && nodeZ < -0.4) || (minZ >= 0 && nodeZ < -0.4 && dropped) || (minZ < 0 && nodeZ < -0.4)) {
       gun.barrelZ = nodeZ;
     }
     this._liftBarrel(gun);
@@ -900,18 +1190,26 @@ export class TurretGun extends Component {
       this._applyYaw(gun);
     }
     head.updateWorldTransform();
-    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
-    if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
-    else _dir.normalize();
     const mouths = gun.muzzles.length >= 2 ? gun.muzzles : [gun.muzzle];
-    const nudge = this._height * 0.04;
+    const split = gun.bores.length === mouths.length && mouths.length >= 2;
+    if (!split) {
+      Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
+      if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
+      else _dir.normalize();
+    }
+    const nudge = this._height * 0.05;
     for (let i = 0; i < mouths.length; i++) {
+      if (split) {
+        Vec3.transformQuat(_dir, gun.bores[i], head.worldRotation);
+        if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
+        else _dir.normalize();
+      }
       Vec3.transformMat4(_world, mouths[i], head.worldMatrix);
       _world.x += _dir.x * nudge;
       _world.y += _dir.y * nudge;
       _world.z += _dir.z * nudge;
-      createLaserFlash(head, _world, this._height * 0.28, 0.09);
-      if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir, this._height);
+      createLaserFlash(head, _world, bulletHeight() * 0.26, 0.12);
+      if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir);
     }
   }
 
@@ -930,11 +1228,29 @@ export class TurretGun extends Component {
     });
   };
 
-  private _pick(gun: Gun): MonsterUnit | null {
-    const origin = gun.root.worldPosition;
+  /** Distance plus the turn still needed. A monster already in front beats one that is only a little closer. */
+  private _score(facing: boolean, dx: number, dz: number): number {
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    if (!facing || dist <= 0.05) return dist;
+    const inv = 1 / dist;
+    const lx = dx * inv;
+    const lz = dz * inv;
+    const turn = Math.abs(Math.atan2(_dir.z * lx - _dir.x * lz, _dir.x * lx + _dir.z * lz));
+    return dist + AIM_SLACK * turn;
+  }
+
+  private _pick(gun: Gun, dt: number): MonsterUnit | null {
+    const head = gun.head ?? gun.root;
+    const pivot = gun.pivot?.isValid ? gun.pivot : head;
+    head.updateWorldTransform();
+    const origin = pivot.worldPosition;
+    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
+    _dir.y = 0;
+    const facing = _dir.lengthSqr() > 1e-8;
+    if (facing) _dir.normalize();
     const range2 = RANGE * RANGE;
     let best: MonsterUnit | null = null;
-    let bestD = range2;
+    let bestScore = Infinity;
     const list = MonsterUnit.all;
     for (let i = 0; i < list.length; i++) {
       const unit = list[i];
@@ -942,19 +1258,27 @@ export class TurretGun extends Component {
       const p = unit.node.worldPosition;
       const dx = p.x - origin.x;
       const dz = p.z - origin.z;
-      const d = dx * dx + dz * dz;
-      if (d >= bestD) continue;
-      bestD = d;
+      if (dx * dx + dz * dz >= range2) continue;
+      const score = this._score(facing, dx, dz);
+      if (score >= bestScore) continue;
+      bestScore = score;
       best = unit;
     }
     const cur = gun.target;
-    if (cur?.threat && cur.node?.isValid) {
+    if (cur?.threat && cur.node?.isValid && cur !== best) {
       const p = cur.node.worldPosition;
       const dx = p.x - origin.x;
       const dz = p.z - origin.z;
-      const cd = dx * dx + dz * dz;
-      if (cd <= range2 && cd <= bestD * 1.7) return cur;
+      if (dx * dx + dz * dz <= range2) {
+        const curScore = this._score(facing, dx, dz);
+        if (gun.lock > 0 || curScore <= bestScore + 3.5) {
+          gun.lock = Math.max(0, gun.lock - dt);
+          return cur;
+        }
+      }
     }
+    if (gun.target !== best) gun.lock = TARGET_LOCK;
+    else gun.lock = Math.max(0, gun.lock - dt);
     gun.target = best;
     return best;
   }
@@ -983,23 +1307,57 @@ export class TurretGun extends Component {
     this._applyYaw(gun);
   }
 
+  /**
+   * Yaw around the pivot. The muzzle's side offset is a fixed correction,
+   * so the turn stays smooth when a monster passes close.
+   */
   private _track(gun: Gun, target: Vec3, dt: number): number {
     const head = gun.head ?? gun.root;
+    const pivot = gun.pivot?.isValid ? gun.pivot : head;
     head.updateWorldTransform();
+    const origin = pivot.worldPosition;
     Vec3.transformMat4(_world, gun.muzzle, head.worldMatrix);
     Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
     _dir.y = 0;
     if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
     else _dir.normalize();
-    _local.set(target.x - _world.x, 0, target.z - _world.z);
-    if (_local.lengthSqr() < 0.04) return 0;
+    const rx = _world.x - origin.x;
+    const rz = _world.z - origin.z;
+    const side = rz * _dir.x - rx * _dir.z;
+    _local.set(target.x - origin.x, 0, target.z - origin.z);
+    const dist2 = _local.lengthSqr();
+    if (dist2 < 0.36) {
+      gun.spin = 0;
+      return Math.PI;
+    }
+    const dist = Math.sqrt(dist2);
     _local.normalize();
     const crossY = _dir.z * _local.x - _dir.x * _local.z;
     const err = Math.atan2(crossY, Vec3.dot(_dir, _local));
-    const limit = YAW_RATE * dt;
-    const step = Math.max(-limit, Math.min(limit, gun.turnSign * err));
+    const ratio = Math.max(-0.85, Math.min(0.85, side / dist));
+    const drive = err + Math.asin(ratio);
+    const want = gun.turnSign * drive;
+    const travel = Math.abs(want) - YAW_DEAD;
+    if (travel <= 0) {
+      gun.spin = 0;
+      return drive;
+    }
+    const stop = Math.sqrt(2 * YAW_ACCEL * travel);
+    const cap = Math.min(YAW_RATE, stop);
+    const desired = want < 0 ? -cap : cap;
+    const stepDt = dt > 0.05 ? 0.05 : dt;
+    const dv = YAW_ACCEL * stepDt;
+    let spin = gun.spin + Math.max(-dv, Math.min(dv, desired - gun.spin));
+    if (spin > YAW_RATE) spin = YAW_RATE;
+    else if (spin < -YAW_RATE) spin = -YAW_RATE;
+    let step = spin * stepDt;
+    if (step * want > 0 && Math.abs(step) > travel) {
+      step = want < 0 ? -travel : travel;
+      spin = 0;
+    }
+    gun.spin = spin;
     gun.aim += step;
-    return err - gun.turnSign * step;
+    return drive - gun.turnSign * step;
   }
 
   private _afterUpdate = (): void => {
@@ -1011,11 +1369,15 @@ export class TurretGun extends Component {
       if (!gun.root.isValid) continue;
       gun.time += dt;
       const plate = gun.plate;
-      const monster = plate?.alive ? this._pick(gun) : null;
       this._applyYaw(gun);
+      const monster = plate?.alive ? this._pick(gun, dt) : null;
       let remain = Math.PI;
       if (monster) remain = this._track(gun, monster.aimPoint(_mark), dt);
-      else gun.target = null;
+      else {
+        gun.target = null;
+        gun.spin = 0;
+        gun.lock = 0;
+      }
       this._applyYaw(gun);
       if (!plate?.alive) continue;
       gun.cool -= dt;
