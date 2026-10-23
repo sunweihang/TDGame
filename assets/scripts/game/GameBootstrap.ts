@@ -25,6 +25,7 @@ import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } 
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { mountKillLoot, tickKillLoot } from '../effect/KillLoot.ts';
 import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
+import { warmupFlame } from '../effect/FlameJet.ts';
 import { warmupHpBar } from '../effect/HpBar.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
 import { TankWalkGM } from '../player/TankWalkGM.ts';
@@ -212,6 +213,7 @@ export class GameBootstrap extends Component {
       }
       warmupHpBar();
       warmupMuzzleFlash();
+      warmupFlame();
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
       this._useOrtho();
       this._fitFrame();

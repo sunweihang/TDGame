@@ -1,5 +1,5 @@
 -- Export turret 10011. Does not save over the Max scene.
--- Height becomes 4 m. Neck stays the yaw pivot. Muzzle stays -Y.
+-- Base matches turret 10010, 4.350731611251831 m across. Neck stays the yaw pivot. Muzzle stays -Y.
 statusPath = @"d:\Custom\TD\temp\mg-10011\export-status.txt"
 statsPath = @"d:\Custom\TD\temp\mg-10011\export-stats.txt"
 maxPath = @"d:\Custom\TD\temp\mg-10011\10011.max"
@@ -84,7 +84,11 @@ try (
 	if ring == undefined then throw "neck ring missing"
 	local pivot = ring[1]
 	pivot.z = cutZ
-	local fit = 157.4803149606299 / height
+	local foot = base.max.x - base.min.x
+	local spanY = base.max.y - base.min.y
+	if spanY > foot do foot = spanY
+	if foot < 1.0 then throw "base foot missing"
+	local fit = (4.350731611251831 / 0.0254) / foot
 	local neckZ = (pivot.z - zmin) * fit
 	note ("height " + (height as string) + " fit " + (fit as string))
 	note ("pivot " + (pivot as string) + " n " + (ring[2] as string))

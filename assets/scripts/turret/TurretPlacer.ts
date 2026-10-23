@@ -26,7 +26,7 @@ import { spawnPlantBeam } from '../effect/PlantBeam.ts';
 import { paintTurretWire } from '../effect/TurretWire.ts';
 import { TURRET_10000_CELLS, BattleGrid, squareCellSize } from './BattleGrid.ts';
 import { stickHeld, stickSlid, stickTouch } from '../player/TankStick.ts';
-import { walkGmHeld } from '../player/TankWalkGM.ts';
+import { gmPlantPool, walkGmHeld } from '../player/TankWalkGM.ts';
 import { TurretGun, measureTurretXZ } from './TurretGun.ts';
 
 const { ccclass } = _decorator;
@@ -37,7 +37,6 @@ const _axisX = new Vec3();
 const _axisY = new Vec3();
 const _axisZ = new Vec3();
 const _hit = new Vec3();
-const PLANT_KINDS: Kind[] = ['10010', '10011', '10012'];
 const TAP_SLOP = 36;
 const _ghostOk = new Color(57, 255, 20, 255);
 const _ghostBad = new Color(255, 96, 88, 255);
@@ -49,12 +48,15 @@ const TURRET_10004 = 'e5c13a42-9b60-4d71-a088-10004bb10004';
 const TURRET_10010 = 'b8d14f02-6a37-4e85-9c21-10010bb10010';
 const TURRET_10011 = 'e1a48e36-af7b-4c09-8d65-10011bb10011';
 const TURRET_10012 = 'f3c62a18-9d4e-4b71-a056-10012bb10012';
+const TURRET_10005 = 'c5d18a40-6e73-4f92-a014-10005bb10005';
+const TURRET_10006 = 'a7c41e62-8b05-4d16-9e38-10006bb10006';
+const TURRET_10007 = 'd8f30b73-5c26-4a91-b048-10007bb10007';
 
-type Kind = '10000' | '10001' | '10002' | '10004' | '10010' | '10011' | '10012';
+type Kind = '10000' | '10001' | '10002' | '10004' | '10005' | '10006' | '10007' | '10010' | '10011' | '10012';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
 
 /**
- * A tap on an empty base builds 10010, 10011, or 10012.
+ * A tap on an empty base builds one turret checked in the GM list.
  * The floating crystal goes away, then the build hologram and digital rain play.
  * Square-grid placement remains for an armed turret.
  */
@@ -159,6 +161,9 @@ export class TurretPlacer extends Component {
     this._load10010(scene);
     this._load10011(scene);
     this._load10012(scene);
+    this._load10005(scene);
+    this._load10006(scene);
+    this._load10007(scene);
     this._loadPad(scene);
     mountBaseGems(scene);
   }
@@ -168,7 +173,7 @@ export class TurretPlacer extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10004' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
     }
     return found;
   }
@@ -296,6 +301,60 @@ export class TurretPlacer extends Component {
       this._silence(root);
       this._remember('10012', root);
       if (this._kind === '10012') this._makeGhost();
+    });
+  }
+
+  private _load10005(scene: Node): void {
+    if (this._packs.has('10005')) return;
+    assetManager.loadAny({ uuid: TURRET_10005 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10005 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10005';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10005', root);
+      if (this._kind === '10005') this._makeGhost();
+    });
+  }
+
+  private _load10006(scene: Node): void {
+    if (this._packs.has('10006')) return;
+    assetManager.loadAny({ uuid: TURRET_10006 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10006 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10006';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10006', root);
+      if (this._kind === '10006') this._makeGhost();
+    });
+  }
+
+  private _load10007(scene: Node): void {
+    if (this._packs.has('10007')) return;
+    assetManager.loadAny({ uuid: TURRET_10007 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10007 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10007';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10007', root);
+      if (this._kind === '10007') this._makeGhost();
     });
   }
 
@@ -505,7 +564,7 @@ export class TurretPlacer extends Component {
     root.setWorldPosition(p.x + (x - fitted.cx), footY, p.z + (z - fitted.cz));
   }
 
-  /** Drop 10010, 10011, or 10012 on this pad, clear its crystal, and play the build effect. */
+  /** Drop the GM pick, or a random plantable turret, then clear the crystal and play the build effect. */
   private _plantAt(slot: Node, x: number, z: number): void {
     if (this._bases.has(slot)) return;
     const kind = this._rollKind();
@@ -547,11 +606,12 @@ export class TurretPlacer extends Component {
     this._lastDrop = now;
   }
 
-  /** One of the plantable turrets that has already finished loading. */
+  /** One loaded turret among the boxes checked in the GM list. */
   private _rollKind(): Kind | null {
+    const pool = gmPlantPool();
     const ready: Kind[] = [];
-    for (let i = 0; i < PLANT_KINDS.length; i++) {
-      const kind = PLANT_KINDS[i];
+    for (let i = 0; i < pool.length; i++) {
+      const kind = pool[i];
       if (this._packs.has(kind)) ready.push(kind);
     }
     if (!ready.length) return null;

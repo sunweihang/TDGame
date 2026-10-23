@@ -18,6 +18,7 @@ import {
   gfx,
 } from 'cc';
 import { bulletHeight, createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
+import { FlameJet, mountFlame } from '../effect/FlameJet.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
 import { TurretPlate } from './TurretPlate.ts';
 
@@ -185,6 +186,8 @@ type Gun = {
   target: MonsterUnit | null;
   plate: TurretPlate | null;
   restWorld: Vec3 | null;
+  /** Continuous jet for 10005, 10006, and 10007. Null on every other gun. */
+  flame: FlameJet | null;
 };
 
 /** Bottom ring of the head mesh, in head-local space. Far off the yaw axis means the node origin is not the socket. */
@@ -662,6 +665,168 @@ function headMuzzle(
 }
 
 /**
+ * One nozzle on a Z-up head, such as flamethrowers 10005, 10006, and 10007.
+ * Mesh Z is vertical, so the bore is the longer of X and Y.
+ * Returns the face width, or zero.
+ */
+function headSideMouth(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  out: Vec3,
+  outDir: Vec3,
+  lift = 0,
+): number {
+  if (!normals) return 0;
+  const n = (data.length / 3) | 0;
+  if (n < 12) return 0;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  // A wide lower rim can hide the nozzle. Callers pass a lift so the search starts above it.
+  const floorZ = lift > 0 ? min[2] + (max[2] - min[2]) * lift : -Infinity;
+  if (lift > 0) {
+    min[0] = Infinity;
+    min[1] = Infinity;
+    min[2] = Infinity;
+    max[0] = -Infinity;
+    max[1] = -Infinity;
+    max[2] = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const o = i * 3;
+      if (data[o + 2] < floorZ) continue;
+      for (let a = 0; a < 3; a++) {
+        const v = data[o + a];
+        if (v < min[a]) min[a] = v;
+        if (v > max[a]) max[a] = v;
+      }
+    }
+  }
+  let axis = 0;
+  if (max[1] - min[1] > max[0] - min[0]) axis = 1;
+  const span = max[axis] - min[axis];
+  if (span < 0.4) return 0;
+  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+  const tip = sign > 0 ? max[axis] : min[axis];
+  const band = span * 0.05;
+  const cap: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (data[i * 3 + 2] < floorZ) continue;
+    const v = data[i * 3 + axis];
+    const onTip = sign > 0 ? v >= tip - band : v <= tip + band;
+    if (!onTip) continue;
+    const facing = normals[i * 3 + axis];
+    if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
+    cap.push(i);
+  }
+  if (cap.length < 8) return 0;
+  const u = (axis + 1) % 3;
+  const v = (axis + 2) % 3;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (let k = 0; k < cap.length; k++) {
+    const o = cap[k] * 3;
+    x += data[o];
+    y += data[o + 1];
+    z += data[o + 2];
+    const pu = data[o + u];
+    const pv = data[o + v];
+    if (pu < minU) minU = pu;
+    if (pu > maxU) maxU = pu;
+    if (pv < minV) minV = pv;
+    if (pv > maxV) maxV = pv;
+  }
+  const inv = 1 / cap.length;
+  out.set(x * inv, y * inv, z * inv);
+  outDir.set(axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
+  return Math.max(maxU - minU, maxV - minV);
+}
+
+/**
+ * Open mouth on 10007. The spiked spine sticks out past the snout, so the
+ * global tip is the back. The mouth is the narrow face on the upper head.
+ * Returns the face width, or zero.
+ */
+function headDragonMouth(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  out: Vec3,
+  outDir: Vec3,
+): number {
+  if (!normals) return 0;
+  const n = (data.length / 3) | 0;
+  if (n < 12) return 0;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const z = data[i * 3 + 2];
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  const floorZ = minZ + (maxZ - minZ) * 0.45;
+  let bestW = Infinity;
+  let bestSign = 0;
+  let bestX = 0;
+  let bestY = 0;
+  let bestZ = 0;
+  for (let sign = -1; sign <= 1; sign += 2) {
+    let tip = sign > 0 ? -Infinity : Infinity;
+    for (let i = 0; i < n; i++) {
+      if (data[i * 3 + 2] < floorZ) continue;
+      const y = data[i * 3 + 1];
+      if (sign > 0 ? y > tip : y < tip) tip = y;
+    }
+    const band = 0.32;
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let count = 0;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    for (let i = 0; i < n; i++) {
+      if (data[i * 3 + 2] < floorZ) continue;
+      const py = data[i * 3 + 1];
+      const onTip = sign > 0 ? py >= tip - band : py <= tip + band;
+      if (!onTip) continue;
+      const facing = normals[i * 3 + 1];
+      if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
+      const px = data[i * 3];
+      const pz = data[i * 3 + 2];
+      x += px;
+      y += py;
+      z += pz;
+      count += 1;
+      if (px < minX) minX = px;
+      if (px > maxX) maxX = px;
+    }
+    if (count < 8) continue;
+    const width = maxX - minX;
+    if (width <= 0 || width >= bestW) continue;
+    bestW = width;
+    bestSign = sign;
+    const inv = 1 / count;
+    bestX = x * inv;
+    bestY = y * inv;
+    bestZ = z * inv;
+  }
+  if (!bestSign) return 0;
+  out.set(bestX, bestY, bestZ);
+  outDir.set(0, bestSign, 0);
+  return bestW;
+}
+
+/**
  * Three muzzle faces on a head that still carries every barrel, such as 10012.
  * The bores share one direction. Returns the widest face, or zero.
  */
@@ -1066,7 +1231,7 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
     }
     return found;
   }
@@ -1107,6 +1272,7 @@ export class TurretGun extends Component {
       turnSign: 1,
       target: null,
       plate: null,
+      flame: null,
     };
     if (fit) this._place(root);
     root.updateWorldTransform();
@@ -1236,6 +1402,7 @@ export class TurretGun extends Component {
     else if (gun.root.name === '10012') this._bindHeadTrio(gun);
     else if (gun.root.name === '10011') this._bindHeadTwin(gun);
     else if (gun.root.name === '10010') this._bindHeadMouth(gun);
+    else if (gun.root.name === '10005' || gun.root.name === '10006' || gun.root.name === '10007') this._bindHeadNozzle(gun);
     else this._bindTwin(gun);
   }
 
@@ -1295,6 +1462,38 @@ export class TurretGun extends Component {
     gun.mouth = width;
     gun.muzzle.set(_local.x, _local.y, _local.z);
     gun.forward.set(_dir.x, _dir.y, _dir.z);
+  }
+
+  /** 10005, 10006, and 10007 keep the nozzle on the head. The flame jet sits on that mouth. */
+  private _bindHeadNozzle(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const head = gun.head;
+    if (!head?.isValid) return;
+    const mesh = head.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    const dragon = gun.root.name === '10007';
+    const width = data
+      ? dragon
+        ? headDragonMouth(data, normals, _local, _dir)
+        : headSideMouth(data, normals, _local, _dir)
+      : 0;
+    if (width <= 0) return;
+    gun.mouth = width;
+    gun.muzzle.set(_local.x, _local.y, _local.z);
+    gun.forward.set(_dir.x, _dir.y, _dir.z);
+    gun.flame = mountFlame(head, gun.muzzle, gun.forward, gun.mouth);
   }
 
   /** 10012 keeps all three barrels on the head. Each mouth fires its own bolt. */
@@ -1626,12 +1825,13 @@ export class TurretGun extends Component {
       _world.x += _dir.x * flashNudge;
       _world.y += _dir.y * flashNudge;
       _world.z += _dir.z * flashNudge;
-      createLaserFlash(head, _world, flashSize, 0.12);
+      if (!gun.flame) createLaserFlash(head, _world, flashSize, 0.12);
       const rest = bulletNudge - flashNudge;
       _world.x += _dir.x * rest;
       _world.y += _dir.y * rest;
       _world.z += _dir.z * rest;
-      if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir);
+      if (gun.flame || !this._bullet) continue;
+      spawnBullet20000(this._bullet, scene, _world, _dir);
     }
   }
 
@@ -1670,7 +1870,11 @@ export class TurretGun extends Component {
     _dir.y = 0;
     const facing = _dir.lengthSqr() > 1e-8;
     if (facing) _dir.normalize();
-    const range2 = RANGE * RANGE;
+    const flame = gun.flame?.isValid ? gun.flame : null;
+    if (flame) flame.node.updateWorldTransform();
+    const mouth = flame ? flame.node.worldPosition : origin;
+    const range = flame ? flame.reach : RANGE;
+    const limited = flame !== null;
     let best: MonsterUnit | null = null;
     let bestScore = Infinity;
     const list = MonsterUnit.all;
@@ -1678,9 +1882,10 @@ export class TurretGun extends Component {
       const unit = list[i];
       if (!unit.threat || !unit.node?.isValid) continue;
       const p = unit.node.worldPosition;
-      const dx = p.x - origin.x;
-      const dz = p.z - origin.z;
-      if (dx * dx + dz * dz >= range2) continue;
+      const dx = p.x - mouth.x;
+      const dz = p.z - mouth.z;
+      const limit = limited ? range + unit.hitRadius : range;
+      if (dx * dx + dz * dz >= limit * limit) continue;
       const score = this._score(facing, dx, dz);
       if (score >= bestScore) continue;
       bestScore = score;
@@ -1689,9 +1894,10 @@ export class TurretGun extends Component {
     const cur = gun.target;
     if (cur?.threat && cur.node?.isValid && cur !== best) {
       const p = cur.node.worldPosition;
-      const dx = p.x - origin.x;
-      const dz = p.z - origin.z;
-      if (dx * dx + dz * dz <= range2) {
+      const dx = p.x - mouth.x;
+      const dz = p.z - mouth.z;
+      const keep = limited ? range + cur.hitRadius : range;
+      if (dx * dx + dz * dz <= keep * keep) {
         const curScore = this._score(facing, dx, dz);
         if (gun.lock > 0 || curScore <= bestScore + 3.5) {
           gun.lock = Math.max(0, gun.lock - dt);
@@ -1801,8 +2007,18 @@ export class TurretGun extends Component {
         gun.lock = 0;
       }
       this._applyYaw(gun);
+      const aimed = !!plate?.alive && !!monster && Math.abs(remain) <= AIM_GATE;
+      const breathing = aimed && (!gun.flame?.isValid || gun.flame.covers(monster));
+      if (gun.flame?.isValid) gun.flame.setLit(breathing);
       if (!plate?.alive) continue;
       gun.cool -= dt;
+      if (gun.flame?.isValid) {
+        if (!breathing) continue;
+        if (gun.cool > 0) continue;
+        gun.cool = SHOT_GAP;
+        gun.flame.scorch();
+        continue;
+      }
       if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
       gun.cool = SHOT_GAP;
       this._fire(gun);

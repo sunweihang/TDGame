@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>从零到一实战3D塔防微信小游戏 Day6</title>
+</head>
+<body style="margin:0;background:#ffffff;">
+<section style="max-width:677px;margin:0 auto;padding:12px 4px 48px;background:#ffffff;color:#3f3a34;font-size:16px;line-height:1.95;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;">
+
+  <section style="height:6px;background:#0f6e62;border-radius:3px;margin:0 0 22px;"></section>
+
+  <p style="margin:0 0 12px;line-height:1.4;">
+    <span style="display:inline-block;padding:3px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">DAY 6</span>
+    <span style="display:inline-block;margin-left:8px;font-size:13px;letter-spacing:2px;color:#8a8175;">从零到一 · 3D 塔防</span>
+  </p>
+  <p style="margin:0 0 12px;font-size:26px;line-height:1.4;font-weight:700;color:#1c1915;">从零到一实战3D塔防微信小游戏 Day6</p>
+  <section style="width:36px;height:3px;background:#e0b56a;border-radius:2px;margin:0 0 18px;"></section>
+  <p style="margin:0 0 28px;font-size:16px;line-height:1.95;color:#4a453e;">Day5 已完成实体弹丸、城门清场与坦克碾压。Day6 把游戏定名为「咕咚来了」，并接着重做机枪、战场和战斗界面，让名字、炮塔、地面和界面落在同一套画面里。</p>
+
+  <p style="margin:0 0 14px;font-size:13px;line-height:1.4;letter-spacing:4px;font-weight:700;color:#0f6e62;">今日目标</p>
+
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">01</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">机枪重制</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">机枪改成深蓝金属配橙色装甲，接缝和炮口点着青色光。底座贴着炮位，炮头绕脖子转向。</p>
+  </section>
+  <section style="margin:0 0 12px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">02</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">场景重制</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">战场画成一片林地。草地、分叉土路、树木和野花铺满地面，画面底部是木栅栏城墙和木门。</p>
+  </section>
+  <section style="margin:0 0 8px;padding:16px 18px 14px;background:#f7f5f0;border-radius:10px;border-left:4px solid #0f6e62;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 8px;background:#0f6e62;color:#ffffff;border-radius:3px;font-size:12px;font-weight:700;letter-spacing:1px;">03</span></p>
+    <p style="margin:0 0 6px;font-size:17px;line-height:1.45;font-weight:700;color:#1c1915;">界面重制</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#5e584f;">游戏定名为「咕咚来了」，写在登录画面上方正中。进战场后，顶部是冰蓝玻璃卡片，左侧是能量瓶，城门上方是木纹血条。</p>
+  </section>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">01</span>机枪重制</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">八座炮位和点按放置保持不变。这一节只换机枪的外形和涂装。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">蓝橙涂装</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">新机枪共用一套涂装，外形分成三种。10010 是单管，10011 是双管，10012 是三管。机身以深蓝金属为主，装甲是饱和的橙色，接缝、指示灯和炮口内圈则是青色。高光和磨损都留着手绘笔触，立在草地上轮廓仍然清楚。三座高度都在 4 米左右，底座贴着炮位，炮口朝前。激光炮 10000、双管 10002 和九管 10004 仍留在工程里，本日不参与放置。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">新机枪立在草地上。深蓝金属配橙色装甲，单管、双管、三管三种外形。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">种下与转向</p>
+  <p style="margin:0;font-size:16px;line-height:1.95;color:#3f3a34;">点按空位上的水晶，就会在这三座里随机落下一座，水晶随即收起。全息预览和方形数字雨照旧播放。炮头可以绕脖子转满一圈，炮管固定在炮头上，跟着一起转。打出去的仍是 Day5 的弹丸。枪口火光罩在炮口前方，转到炮身背面时会被炮身挡住。</p>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">02</span>场景重制</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">八座炮位、等距视角和刷怪路线保持不变。这一节只换战场上看见的画面。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">林间地面</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">地面是一幅竖幅手绘。草地一簇一簇，浅黄小花和野草散在路旁。土路从画面上方进来，中段汇成一条，再分向两侧，路边描着深色边。树冠是圆的，树干是棕色，石块、灌木和蕨类都长在路外。草地向上打一层暖光，车底和怪物腹部都能照到。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">林间战场。土路穿过草地，两侧是树、石块、灌木和野花。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">城墙与炮位</p>
+  <p style="margin:0;font-size:16px;line-height:1.95;color:#3f3a34;">画面底部横着一排木栅栏。石柱里嵌着蓝色晶体，正中是木门，藤蔓缠在柱上。城墙比地面更宽，左右一直伸到屏幕边缘，底下有一圈接触阴影，贴在草地上。空着的石盘上仍立着蓝色水晶，机枪种下之后水晶收起。炮位和土路的位置没有改，新机枪就落在原来的石盘上。</p>
+
+  <section style="margin:36px 0 16px;padding:14px 16px;background:#1c1915;border-radius:8px;">
+    <p style="margin:0;font-size:18px;line-height:1.45;font-weight:700;color:#ffffff;"><span style="color:#e0b56a;margin-right:10px;">03</span>界面重制</p>
+  </section>
+  <section style="margin:0 0 16px;padding:14px 16px;background:#f3faf7;border-radius:8px;">
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#1f5c52;">战斗规则保持不变。这一节先把游戏名定在封面上，再换上常驻界面。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">定名「咕咚来了」</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">游戏本日定名为「咕咚来了」。四个字横在登录画面上方正中，落在两棵树之间的天空上，字外带着一圈光。正下方是「开始游戏」，字会慢慢起伏。点按之后，加载图上的进度条从左走到右，走满才进入林间战场。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">登录封面。上方正中是「咕咚来了」，下方是「开始游戏」。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">顶部玻璃栏</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">画面最上方是一条深色圆角外框，框里并排三块冰蓝玻璃。左边写着「关卡」和数字 15，玻璃顶上有一道高光。中间写着「波次 18/20」，底下是一排进度格，亮着的格子是青色，末尾两格是深蓝，其中两格标着金色骷髅。右边是一枚金币和数字 1280。关卡和波次目前是固定画面，金币数字会在金币飞到之后增加。怪物被击杀时，金币旋转着飞进这枚硬币。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">顶部界面。深色圆角框里并排着关卡、波次和金币三块冰蓝玻璃。</p>
+  </section>
+
+  <p style="margin:22px 0 8px;padding-left:10px;border-left:3px solid #e0b56a;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">城门与能量</p>
+  <p style="margin:0 0 12px;font-size:16px;line-height:1.95;color:#3f3a34;">木门正上方横着一条木纹血条，两端收成圆角，像一块木板。左端镶着一枚木纹圆章，中间是金色盾牌，盾心是十字。血从左往右填成金色，末端停着一粒火花，百分比写在条上。血量下降后火花会闪得更快。降到三分之一以下，金条上会罩一层红，屏幕四边也淡淡泛红。画面左侧立着一只玻璃瓶，瓶壁带着高光。瓶里的液体从底部往上涨，开局是空的，数字从 0 计到 100。击杀掉落的能量会飞进瓶子，液面跟着升高。</p>
+  <section style="margin:0 0 8px;padding:22px 16px;text-align:center;background:#faf8f4;border-radius:10px;">
+    <p style="margin:0 0 8px;line-height:1.4;"><span style="display:inline-block;padding:2px 10px;background:#efe6d6;color:#8a6a32;border-radius:10px;font-size:12px;font-weight:700;letter-spacing:1px;">配图</span></p>
+    <p style="margin:0;font-size:13px;line-height:1.7;color:#8a8175;">木门上方的木纹血条和金色盾牌，以及画面左侧的玻璃能量瓶。</p>
+  </section>
+
+  <section style="margin:32px 0 0;padding:18px 18px 16px;background:#14312c;border-radius:10px;">
+    <p style="margin:0 0 8px;font-size:12px;line-height:1.4;letter-spacing:2px;font-weight:700;color:#e0b56a;">最终效果</p>
+    <p style="margin:0;font-size:15px;line-height:1.8;color:#d7ebe4;">配视频 · 封面上先看到「咕咚来了」，点开「开始游戏」进入林间战场，在空位上落下蓝橙机枪。顶部玻璃栏、左侧能量瓶和木门上的血条一直留在画面里。击杀之后，金币和能量分别飞进金币图标和能量瓶。</p>
+  </section>
+
+  <section style="margin:16px 0 0;padding:16px 18px 12px;background:#f7f5f0;border-radius:10px;">
+    <p style="margin:0 0 6px;font-size:12px;line-height:1.4;letter-spacing:2px;color:#8a8175;">本项目已经开源</p>
+    <p style="margin:0;font-size:15px;line-height:1.6;"><a href="https://github.com/sunweihang/TDGame" style="color:#0f6e62;font-weight:700;text-decoration:none;">https://github.com/sunweihang/TDGame</a></p>
+  </section>
+
+  <p style="margin:32px 0 10px;font-size:16px;line-height:1.5;font-weight:700;color:#1c1915;">关于作者</p>
+  <section style="height:1px;background:#ece6dc;"></section>
+
+</section>
+</body>
+</html>

@@ -3,7 +3,7 @@ description: Turret ID, prefab name, size, and Fire clip
 alwaysApply: true
 ---
 
-Turret IDs are decimal numbers starting at 10000. Assigned turrets are 10000, 10001, 10002, 10003, 10004, 10010, 10011, and 10012. The next new turret is 10005, then 10006, and so on. Never reuse or skip an assigned ID. 10010, 10011, and 10012 were assigned directly and do not take the 10005 slot.
+Turret IDs are decimal numbers starting at 10000. Assigned turrets are 10000, 10001, 10002, 10003, 10004, 10005, 10006, 10007, 10010, 10011, and 10012. The next new turret is 10008, then 10009, and so on. Never reuse or skip an assigned ID. 10010, 10011, and 10012 were assigned directly and do not take the 10005 slot.
 
 The prefab file and its root node use the ID as the name, with no prefix: `assets/prefabs/turret/10000.prefab`, node `10000`. Scene instances use that same name. Turret scripts live in `assets/scripts/turret/`.
 
@@ -11,10 +11,16 @@ Match new turret design to prefab `10000`. In Cocos units (1 unit = 1 meter) its
 
 Turret 10001 is the machine gun. Its yaw pivot is the neck ring, about 1.17 m, not 1.01. Before editing its yaw, Fire clip, barrel, or prefab, follow `.cursor/skills/turret-10001/SKILL.md` and run `node .cursor/skills/turret-10001/scripts/check.js`. Do not finish while that check fails.
 
-Turret 10010 is the level-1 machine gun. Its yaw pivot is the neck ring at 1.824 m. The barrel stays on `TurretHead`. Height is 4.00 m and the base is 4.35 m wide. The record is `docs/turret-10010.md`.
+Turret 10005 is the level-1 flamethrower. Its yaw pivot is the neck ring at 2.008 m. The nozzle stays on `TurretHead`. Height is 5.95 m and the base is 4.35 m across, the same footprint as 10010. The record is `docs/turret-10005.md`.
 
-Turret 10011 is the level-2 machine gun. Its yaw pivot is the neck ring at 1.800 m. Both barrels stay on `TurretHead`. Height is 4.00 m and the base is 4.45 m wide. The record is `docs/turret-10011.md`.
+Turret 10006 is the level-2 flamethrower. Its yaw pivot is the neck ring at 1.136 m. The dragon head stays on `TurretHead`. Height is 4.33 m and the base's long side is 4.35 m, the same footprint as 10010. The record is `docs/turret-10006.md`.
 
-Turret 10012 is the level-3 machine gun. Its yaw pivot is the neck ring at 1.349 m. All three barrels stay on `TurretHead`. Height is 4.00 m and the base is 4.40 m wide. The record is `docs/turret-10012.md`.
+Turret 10007 is the level-3 flamethrower. Its yaw pivot is the plinth ring at 0.827 m. The dragon and the spiked nest stay on `TurretHead`. Height is 4.70 m and the base's long side is 4.35 m, the same footprint as 10010. The record is `docs/turret-10007.md`.
+
+Turret 10010 is the level-1 machine gun. Its yaw pivot is the neck ring at 1.824 m. The barrel stays on `TurretHead`. Height is 4.00 m and the base is 4.35 m across. That base size is the shared footprint for 10005, 10006, 10007, 10011, and 10012. The record is `docs/turret-10010.md`.
+
+Turret 10011 is the level-2 machine gun. Its yaw pivot is the neck ring at 1.760 m. Both barrels stay on `TurretHead`. Height is 3.91 m and the base is 4.35 m across, the same footprint as 10010. The record is `docs/turret-10011.md`.
+
+Turret 10012 is the level-3 machine gun. Its yaw pivot is the neck ring at 1.335 m. All three barrels stay on `TurretHead`. Height is 3.96 m and the base is 4.35 m across, the same footprint as 10010. The record is `docs/turret-10012.md`.
 
 Turret fire animations use the clip name `Fire`. When importing or splitting an FBX take, set the animation split name to `Fire` and keep the existing clip id so prefabs stay linked. Do not leave the default `Take 001` name.
