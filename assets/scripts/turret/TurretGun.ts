@@ -661,6 +661,153 @@ function headMuzzle(
   return Math.max(maxU - minU, maxV - minV);
 }
 
+/**
+ * Three muzzle faces on a head that still carries every barrel, such as 10012.
+ * The bores share one direction. Returns the widest face, or zero.
+ */
+function headTrioMuzzles(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  out: Vec3[],
+  outDir: Vec3,
+): number {
+  if (!normals) return 0;
+  const n = (data.length / 3) | 0;
+  if (n < 24) return 0;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  let axis = 0;
+  if (max[1] - min[1] > max[axis] - min[axis]) axis = 1;
+  if (max[2] - min[2] > max[axis] - min[axis]) axis = 2;
+  const span = max[axis] - min[axis];
+  if (span < 0.4) return 0;
+  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+  const tip = sign > 0 ? max[axis] : min[axis];
+  const band = span * 0.05;
+  const cap: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = data[i * 3 + axis];
+    const onTip = sign > 0 ? v >= tip - band : v <= tip + band;
+    if (!onTip) continue;
+    const facing = normals[i * 3 + axis];
+    if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
+    cap.push(i);
+  }
+  if (cap.length < 24) return 0;
+  const u = (axis + 1) % 3;
+  const v = (axis + 2) % 3;
+  const seeds = [cap[0]];
+  while (seeds.length < 3) {
+    let best = 0;
+    let bestD = -1;
+    for (let i = 0; i < cap.length; i++) {
+      const o = cap[i] * 3;
+      let near = Infinity;
+      for (let s = 0; s < seeds.length; s++) {
+        const so = seeds[s] * 3;
+        const du = data[o + u] - data[so + u];
+        const dv = data[o + v] - data[so + v];
+        const d = du * du + dv * dv;
+        if (d < near) near = d;
+      }
+      if (near > bestD) {
+        bestD = near;
+        best = i;
+      }
+    }
+    seeds.push(cap[best]);
+  }
+  const cx = [0, 0, 0];
+  const cv = [0, 0, 0];
+  for (let s = 0; s < 3; s++) {
+    const o = seeds[s] * 3;
+    cx[s] = data[o + u];
+    cv[s] = data[o + v];
+  }
+  const assign = new Array<number>(cap.length);
+  for (let iter = 0; iter < 8; iter++) {
+    for (let i = 0; i < cap.length; i++) {
+      const o = cap[i] * 3;
+      let hit = 0;
+      let bestD = Infinity;
+      for (let s = 0; s < 3; s++) {
+        const du = data[o + u] - cx[s];
+        const dv = data[o + v] - cv[s];
+        const d = du * du + dv * dv;
+        if (d < bestD) {
+          bestD = d;
+          hit = s;
+        }
+      }
+      assign[i] = hit;
+    }
+    const sx = [0, 0, 0];
+    const sv = [0, 0, 0];
+    const sn = [0, 0, 0];
+    for (let i = 0; i < cap.length; i++) {
+      const s = assign[i];
+      const o = cap[i] * 3;
+      sx[s] += data[o + u];
+      sv[s] += data[o + v];
+      sn[s] += 1;
+    }
+    for (let s = 0; s < 3; s++) {
+      if (sn[s] < 1) return 0;
+      cx[s] = sx[s] / sn[s];
+      cv[s] = sv[s] / sn[s];
+    }
+  }
+  let width = 0;
+  out.length = 0;
+  for (let s = 0; s < 3; s++) {
+    let x = 0;
+    let y = 0;
+    let z = 0;
+    let count = 0;
+    let minU = Infinity;
+    let maxU = -Infinity;
+    let minV = Infinity;
+    let maxV = -Infinity;
+    for (let i = 0; i < cap.length; i++) {
+      if (assign[i] !== s) continue;
+      const o = cap[i] * 3;
+      x += data[o];
+      y += data[o + 1];
+      z += data[o + 2];
+      count += 1;
+      const pu = data[o + u];
+      const pv = data[o + v];
+      if (pu < minU) minU = pu;
+      if (pu > maxU) maxU = pu;
+      if (pv < minV) minV = pv;
+      if (pv > maxV) maxV = pv;
+    }
+    if (count < 8) return 0;
+    width = Math.max(width, maxU - minU, maxV - minV);
+    out.push(new Vec3(x / count, y / count, z / count));
+  }
+  let apart = Infinity;
+  for (let a = 0; a < 3; a++) {
+    for (let b = a + 1; b < 3; b++) {
+      const du = cx[a] - cx[b];
+      const dv = cv[a] - cv[b];
+      const d = Math.sqrt(du * du + dv * dv);
+      if (d < apart) apart = d;
+    }
+  }
+  if (!(apart > width)) return 0;
+  outDir.set(axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
+  return width;
+}
+
 function axisComp(axis: number): 'x' | 'y' | 'z' {
   return axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
 }
@@ -919,7 +1066,7 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10010' || name === '10011') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
     }
     return found;
   }
@@ -1086,6 +1233,7 @@ export class TurretGun extends Component {
     if (gun.socket) this._seatPivot(gun);
     if (gun.root.name === '10003') this._bindRadial(gun);
     else if (gun.root.name === '10004') this._bindGrid(gun);
+    else if (gun.root.name === '10012') this._bindHeadTrio(gun);
     else if (gun.root.name === '10011') this._bindHeadTwin(gun);
     else if (gun.root.name === '10010') this._bindHeadMouth(gun);
     else this._bindTwin(gun);
@@ -1146,6 +1294,43 @@ export class TurretGun extends Component {
     if (width <= 0) return;
     gun.mouth = width;
     gun.muzzle.set(_local.x, _local.y, _local.z);
+    gun.forward.set(_dir.x, _dir.y, _dir.z);
+  }
+
+  /** 10012 keeps all three barrels on the head. Each mouth fires its own bolt. */
+  private _bindHeadTrio(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const head = gun.head;
+    if (!head?.isValid) return;
+    const mesh = head.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    const found: Vec3[] = [];
+    const width = data ? headTrioMuzzles(data, normals, found, _dir) : 0;
+    if (width <= 0 || found.length !== 3) return;
+    gun.mouth = width;
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    for (let i = 0; i < found.length; i++) {
+      const mouth = found[i];
+      gun.muzzles.push(mouth);
+      sx += mouth.x;
+      sy += mouth.y;
+      sz += mouth.z;
+    }
+    gun.muzzle.set(sx / 3, sy / 3, sz / 3);
     gun.forward.set(_dir.x, _dir.y, _dir.z);
   }
 

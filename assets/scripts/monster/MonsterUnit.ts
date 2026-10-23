@@ -1,6 +1,7 @@
 import { _decorator, AnimationClip, Component, Node, SkeletalAnimation, Vec3 } from 'cc';
 import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
 import { playBloodSpray } from '../effect/BloodSpray.ts';
+import { dropKillLoot } from '../effect/KillLoot.ts';
 import { showDmgFont } from '../effect/DmgFont.ts';
 import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar } from '../effect/HpBar.ts';
 import { hurtGate, pastWall } from '../effect/WallFlash.ts';
@@ -51,8 +52,8 @@ function pickClip(anim: SkeletalAnimation, key: string, fallback: number): Anima
 export class MonsterUnit extends Component {
   static all: MonsterUnit[] = [];
 
-  hp = 4200;
-  maxHp = 4200;
+  hp = 2100;
+  maxHp = 2100;
   size = 1;
   private _anim: SkeletalAnimation | null = null;
   private _vat: VertexAnimPlayer | null = null;
@@ -716,6 +717,8 @@ export class MonsterUnit extends Component {
     this.hp = 0;
     this._vx = 0;
     this._vz = 0;
+    const p = this.node.worldPosition;
+    dropKillLoot(p.x, p.y + 1.8 * this.size, p.z);
     if (this._grind || this._flat > 0.35) this._stayFlat = true;
     this._play(this._dead, AnimationClip.WrapMode.Normal);
     this.scheduleOnce(() => {

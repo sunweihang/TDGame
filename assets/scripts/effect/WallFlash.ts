@@ -23,12 +23,14 @@ const PLATE_BORDER = 64;
 const HOLE_LEFT = 39;
 const HOLE_RIGHT = 38;
 const HOLE_H = 115;
-/** A full light monster (2800) takes a tenth of the gate. Heavies bring whatever they have left. */
+/** A full light monster (1400) takes a twentieth of the gate. Heavies bring whatever they have left. */
 const GATE_MAX = 28000;
 /** Screen edges and the fill go red under this fraction. */
 const LOW = 1 / 3;
 /** Soft wash texture. Bigger than the fade so the edge stays smooth when stretched. */
 const WASH = 160;
+/** Peak alpha at the screen edge. The pulse still breathes, but the border stays a wash. */
+const WASH_ALPHA = 120;
 
 const _world = new Vec3();
 const _eye = new Vec3();
@@ -193,7 +195,7 @@ function washFrame(): SpriteFrame {
       const dx = Math.min(u, 1 - u) / reachX;
       const dy = Math.min(v, 1 - v) / reachY;
       const fade = 1 - smooth(dx) * smooth(dy);
-      const a = Math.round(fade * fade * 235);
+      const a = Math.round(fade * fade * WASH_ALPHA);
       const i = (y * n + x) * 4;
       src[i] = 255;
       src[i + 1] = 255;

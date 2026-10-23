@@ -23,6 +23,7 @@ import {
 import { holdDomSplash, isSplashClicked, releaseDomSplash, signalLoadReady, splashCoverIsUp } from './DomSplash.ts';
 import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
+import { mountKillLoot, tickKillLoot } from '../effect/KillLoot.ts';
 import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
 import { warmupHpBar } from '../effect/HpBar.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
@@ -207,6 +208,7 @@ export class GameBootstrap extends Component {
       const canvas = scene?.getChildByName('Canvas');
       if (canvas) {
         mountDmgFont(canvas);
+        mountKillLoot(canvas);
       }
       warmupHpBar();
       warmupMuzzleFlash();
@@ -229,6 +231,7 @@ export class GameBootstrap extends Component {
     }
     this._fitFrame();
     tickDmgFont(dt, this._cam);
+    tickKillLoot(dt, this._cam);
     tickWallFlash(dt, this.node.scene);
   }
 

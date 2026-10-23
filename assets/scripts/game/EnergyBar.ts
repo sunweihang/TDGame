@@ -10,7 +10,7 @@ const { ccclass, property } = _decorator;
 @ccclass('EnergyBar')
 export class EnergyBar extends Component {
   @property
-  value = 100;
+  value = 0;
 
   private _label: Label | null = null;
   private _fill: Node | null = null;

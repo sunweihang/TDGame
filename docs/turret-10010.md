@@ -58,6 +58,6 @@ Cocos 导入这份 Z-up FBX 时，在内层节点 `10010` 上写入绕 X 轴 -90
 
 两块网格共用材质 `10010_skin`。贴图来自 FBX 内嵌的 `10010_basecolor`。工程里另存了一份 `assets/models/turret/10010_basecolor.jpg`。
 
-预制体 uuid 是 `b8d14f02-6a37-4e85-9c21-10010bb10010`。`TurretGun` 和 `TurretPlacer` 会按名字 `10010` 识别它。点按空位在 10010 和 10011 里随机种一座。
+预制体 uuid 是 `b8d14f02-6a37-4e85-9c21-10010bb10010`。`TurretGun` 和 `TurretPlacer` 会按名字 `10010` 识别它。点按空位在 10010、10011 和 10012 里随机种一座。
 
 这次没有拆出单独的炮管，也没有 `Fire` 片段。转向由炮头整体完成。
