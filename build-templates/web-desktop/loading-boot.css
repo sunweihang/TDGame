@@ -1,0 +1,128 @@
+/* Shown only after the login tap, while the level scene and models initialize. */
+#boot {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647;
+  display: block;
+  overflow: hidden;
+  background: #000;
+  container-type: size;
+  pointer-events: auto;
+  cursor: default;
+}
+#boot.is-idle,
+#boot.is-done {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+#boot.is-done {
+  transition: opacity 0.28s ease;
+}
+#boot .boot-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: #000;
+}
+
+/* Bar art keeps its own aspect. Progress is a mask, not a scale. */
+#boot .boot-stack {
+  position: absolute;
+  left: 11.826%;
+  width: 76.348%;
+  top: 85.9%;
+}
+#boot .boot-bar {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1182 / 83;
+}
+#boot .boot-track {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: fill;
+}
+#boot .boot-mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  overflow: hidden;
+  pointer-events: none;
+}
+#boot .boot-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  object-fit: cover;
+  -webkit-mask-image: url("./load-bar-track.png");
+  mask-image: url("./load-bar-track.png");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: left center;
+  mask-position: left center;
+  -webkit-mask-mode: alpha;
+  mask-mode: alpha;
+}
+
+#boot .boot-label {
+  margin: 0.2cqh 0 0;
+  padding: 0;
+  text-align: center;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-weight: 900;
+  font-size: 2.55cqh;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #fff;
+  -webkit-text-stroke: 0.1em #120d08;
+  paint-order: stroke fill;
+  text-shadow:
+    0 0.08em 0 #000,
+    0 0.16em 0.12em rgba(0, 0, 0, 0.55);
+}
+
+/* Login prompt. Cream fill and brown rim from LumewispVale LoadingScreen. */
+@font-face {
+  font-family: "ZCOOL KuaiLe";
+  src: url("./ZCOOLKuaiLe-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+#splash .splash-start {
+  position: absolute;
+  left: 50%;
+  bottom: 1.4%;
+  z-index: 1;
+  width: 72%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transform-origin: center center;
+  animation: splash-breathe 1.8s ease-in-out infinite;
+}
+#splash .splash-start text {
+  font-family: "ZCOOL KuaiLe", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-weight: 400;
+}
+@keyframes splash-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.47;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #splash .splash-start {
+    animation: none;
+  }
+}

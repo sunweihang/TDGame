@@ -1,0 +1,79 @@
+{
+  "items": [
+    {
+      "asset_id": "energy-frame",
+      "file_path": "assets/resources/ui/energy/frame.png",
+      "asset_type": "panel-skin",
+      "generated_by": "9-slice of assets/resources/ui/hud/glass.png",
+      "model": "existing-glass",
+      "prompt": "",
+      "size": "124x552",
+      "transparent_background": true,
+      "states": ["default"],
+      "usage": "Outer vial frame. Sliced from the existing frosted glass, not redrawn.",
+      "cropped_from_reference": false,
+      "runtime_reference_dependency": false,
+      "status": "implemented"
+    },
+    {
+      "asset_id": "energy-badge",
+      "file_path": "assets/resources/ui/energy/badge.png",
+      "asset_type": "panel-skin",
+      "generated_by": "9-slice of assets/resources/ui/hud/glass.png",
+      "model": "existing-glass",
+      "prompt": "",
+      "size": "124x58",
+      "transparent_background": true,
+      "states": ["default"],
+      "usage": "Top value plate. Same existing frosted glass, sliced to the badge box.",
+      "cropped_from_reference": false,
+      "runtime_reference_dependency": false,
+      "status": "implemented"
+    },
+    {
+      "asset_id": "energy-track",
+      "file_path": "assets/resources/ui/energy/track.png",
+      "asset_type": "panel-skin",
+      "generated_by": "gpt-imagegen",
+      "model": "cursor-generate-image",
+      "prompt": "A tall empty inner slot for a mobile-game energy meter, isolated on a fully transparent background. One narrow vertical rounded rectangle centered in the canvas. Interior is dark blue-black smoked glass, softly vignetted, with a faint cool inner rim. Rounded capsule ends. No cyan liquid, no lightning, no metal outer frame, no badge, no text, no numbers, no grass, no scenery.",
+      "size": "90x500",
+      "transparent_background": true,
+      "states": ["default"],
+      "usage": "Dark inner well, placed inside the glass frame at the measured track rect.",
+      "cropped_from_reference": false,
+      "runtime_reference_dependency": false,
+      "status": "implemented"
+    },
+    {
+      "asset_id": "energy-liquid",
+      "file_path": "assets/resources/ui/energy/liquid.png",
+      "asset_type": "decor",
+      "generated_by": "gpt-imagegen",
+      "model": "cursor-generate-image",
+      "prompt": "Isolated mobile-game HUD energy liquid only, on a fully transparent background. One narrow vertical capsule of glowing cyan electric plasma. Bright white-cyan core, turquoise body, deeper cyan edges, soft outer glow. Several jagged white lightning cracks inside the liquid. Rounded dome at the top and a rounded bottom. No metal frame, no glass tube, no badge, no numbers, no text, no grass, no scenery.",
+      "size": "78x329",
+      "transparent_background": true,
+      "states": ["default"],
+      "usage": "Cyan column at the reference fill, about 78%. Height follows setEnergy ratio from the bottom.",
+      "cropped_from_reference": false,
+      "runtime_reference_dependency": false,
+      "status": "implemented"
+    },
+    {
+      "asset_id": "energy-bolt",
+      "file_path": "assets/resources/ui/energy/bolt.png",
+      "asset_type": "icon",
+      "generated_by": "gpt-imagegen",
+      "model": "cursor-generate-image",
+      "prompt": "A single stylized lightning bolt icon for a mobile tower-defense HUD, isolated on a fully transparent background. Thick electric-blue bolt, upright and centered, bright white-blue core and a soft blue glow. No circle, no button, no plate, no text, no numbers, no frame, no grass.",
+      "size": "128x128",
+      "transparent_background": true,
+      "states": ["default"],
+      "usage": "Top bolt on the badge and bottom bolt in the well. Same sprite, two sizes.",
+      "cropped_from_reference": false,
+      "runtime_reference_dependency": false,
+      "status": "implemented"
+    }
+  ]
+}

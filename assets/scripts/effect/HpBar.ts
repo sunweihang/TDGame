@@ -15,6 +15,8 @@ import {
 
 /** Same capsule as the knife game: 160×37 frame, 152×31 fill, round ends kept by a 3-slice. */
 const BG_W = 1.12;
+/** Capsule width in meters before the caller's scale. */
+export const HP_CAPSULE_W = BG_W;
 const BG_H = 1.12 * (37 / 160);
 const FILL_W = BG_W * (152 / 160);
 const FILL_H = BG_H * (31 / 37);
@@ -37,6 +39,12 @@ const FILL_CAP_PX = 15;
 const _look = new Vec3();
 const _nudge = new Vec3();
 const _sliceMeshes = new Map<string, Mesh>();
+let _unitQuad: Mesh | null = null;
+/** White at 30% opacity. The empty track of the gate bar. */
+const SLOT_WHITE = new Color(255, 255, 255, 77);
+/** Dark rim. About 1.5 px on the 24 px gate bar. */
+const STROKE = new Color(36, 22, 12, 235);
+const STROKE_INSET = 0.07;
 
 let _bgMat: Material | null = null;
 let _fillTex: Texture2D | null = null;
@@ -76,6 +84,39 @@ function sliceQuadMesh(capFrac: number, uCap: number): Mesh {
   });
   _sliceMeshes.set(key, mesh);
   return mesh;
+}
+
+function unitQuadMesh(): Mesh {
+  if (_unitQuad) return _unitQuad;
+  _unitQuad = utils.MeshUtils.createMesh({
+    positions: [-0.5, -0.5, 0, 0.5, -0.5, 0, -0.5, 0.5, 0, 0.5, 0.5, 0],
+    normals: [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1],
+    uvs: [0, 1, 1, 1, 0, 0, 1, 0],
+    indices: [0, 1, 2, 2, 1, 3],
+    minPos: new Vec3(-0.5, -0.5, 0),
+    maxPos: new Vec3(0.5, 0.5, 0),
+  });
+  return _unitQuad;
+}
+
+function writeFloat(mat: Material, name: string, value: number): void {
+  mat.setProperty(name, value);
+  const passes = mat.passes;
+  for (let i = 0; i < passes.length; i++) {
+    const handle = passes[i].getHandle(name);
+    if (handle !== undefined) passes[i].setUniform(handle, value);
+  }
+}
+
+function plainMat(mode: number, color: Color, inset: number): Material {
+  const mat = new Material();
+  mat.initialize({ effectAsset: _fillEffect!, technique: 1 });
+  mat.setProperty('mainColor', color);
+  mat.setProperty('fillAmount', 1);
+  mat.setProperty('aspect', 8);
+  mat.setProperty('barMode', mode);
+  mat.setProperty('inset', inset);
+  return mat;
 }
 
 function endCap(capPx: number, texH: number, w: number, h: number): number {
@@ -140,16 +181,18 @@ function unlitMat(tex: Texture2D | null, fallback: Color): Material {
   return mat;
 }
 
-function createFillMat(): Material {
+function createFillMat(fill: Color | null): Material {
   const mat = new Material();
+  const ink = fill ?? Color.WHITE;
   if (_fillEffect) {
     mat.initialize({ effectAsset: _fillEffect });
     if (_fillTex) mat.setProperty('mainTexture', _fillTex);
-    mat.setProperty('mainColor', Color.WHITE);
+    mat.setProperty('mainColor', ink);
     mat.setProperty('fillAmount', 1);
+    mat.setProperty('tintMode', fill ? 1 : 0);
     return mat;
   }
-  return unlitMat(_fillTex, FILL_FALLBACK);
+  return unlitMat(fill ? null : _fillTex, fill ?? FILL_FALLBACK);
 }
 
 function bindQuad(parent: Node, name: string, mat: Material, w: number, h: number, z: number, mesh: Mesh): Node {
@@ -194,7 +237,7 @@ export function warmupHpBar(): Promise<void> {
   return _loading;
 }
 
-export function spawnHpBar(parent: Node, widthMul = 1, heightMul = 1): HpBar | null {
+export function spawnHpBar(parent: Node, widthMul = 1, heightMul = 1, fill: Color | null = null): HpBar | null {
   if (!_ready || !parent?.isValid || !_bgMat) return null;
   const mul = Math.max(0.1, widthMul);
   const hMul = Math.max(0.1, heightMul);
@@ -207,10 +250,28 @@ export function spawnHpBar(parent: Node, widthMul = 1, heightMul = 1): HpBar | n
   const node = new Node('HpBar');
   node.layer = Layers.Enum.DEFAULT;
   parent.addChild(node);
-  const fillMat = createFillMat();
+  const fillMat = createFillMat(fill);
   const bg = bindQuad(node, 'Bg', _bgMat, bgW, bgH, 0, bgMesh);
   const fillNode = bindQuad(node, 'Fill', fillMat, fillW, fillH, FILL_Z, fillMesh);
-  return new HpBar(node, bg, fillNode, fillMat, fillW, fillH);
+  return new HpBar(node, bg, fillNode, fillMat, fill, fillW, fillH);
+}
+
+/** Smooth gold pill, dark stroke, white track at 30% opacity. */
+export function spawnCleanHpBar(parent: Node): HpBar | null {
+  if (!_ready || !parent?.isValid || !_fillEffect) return null;
+  const mesh = unitQuadMesh();
+  const node = new Node('HpBar');
+  node.layer = Layers.Enum.DEFAULT;
+  parent.addChild(node);
+  const strokeMat = plainMat(0, STROKE, 0);
+  const slotMat = plainMat(0, SLOT_WHITE, STROKE_INSET);
+  const fillMat = plainMat(1, Color.WHITE, STROKE_INSET);
+  const stroke = bindQuad(node, 'Stroke', strokeMat, 1, 1, 0, mesh);
+  const slot = bindQuad(node, 'Slot', slotMat, 1, 1, FILL_Z, mesh);
+  const fillNode = bindQuad(node, 'Fill', fillMat, 1, 1, FILL_Z * 2, mesh);
+  const bar = new HpBar(node, stroke, fillNode, fillMat, null, 1, 1);
+  bar.usePlain(slot, SLOT_WHITE, STROKE_INSET);
+  return bar;
 }
 
 /** World-space capsule. The fill is clipped by the shader, not scaled, so the round ends stay round. */
@@ -220,23 +281,83 @@ export class HpBar {
   private readonly _fillMat: Material;
   private readonly _fillW: number;
   private readonly _fillH: number;
+  private readonly _tint: Color | null;
   private readonly _masked: boolean;
   private readonly _bgMr: MeshRenderer | null;
   private readonly _fillMr: MeshRenderer | null;
+  private _slotMr: MeshRenderer | null = null;
+  private _bgMat: Material | null = null;
+  private _slotMat: Material | null = null;
   private _ratio = 1;
 
-  constructor(node: Node, bg: Node, fill: Node, fillMat: Material, fillW = FILL_W, fillH = FILL_H) {
+  constructor(node: Node, bg: Node, fill: Node, fillMat: Material, tint: Color | null = null, fillW = FILL_W, fillH = FILL_H) {
     this.node = node;
     this._fill = fill;
     this._fillW = fillW;
     this._fillH = fillH;
+    this._tint = tint ? new Color(tint.r, tint.g, tint.b, tint.a) : null;
     this._masked = !!_fillEffect;
     this._bgMr = bg.getComponent(MeshRenderer);
     this._fillMr = fill.getComponent(MeshRenderer);
     this._fillMat = this._fillMr?.getMaterialInstance(0) ?? fillMat;
     if (this._bgMr) this._bgMr.priority = 800;
     if (this._fillMr) this._fillMr.priority = 801;
+    this._paintTint();
     this.setRatio(1, 1);
+  }
+
+  /** Stroke is the outer pill. Slot and fill sit inside it by `inset`. */
+  usePlain(slotNode: Node, slot: Color, inset: number): void {
+    this._bgMat = this._bgMr?.getMaterialInstance(0) ?? null;
+    this._slotMr = slotNode.getComponent(MeshRenderer);
+    this._slotMat = this._slotMr?.getMaterialInstance(0) ?? null;
+    this._writePlain(this._bgMat, STROKE, 0, 0);
+    this._writePlain(this._slotMat, slot, 0, inset);
+    this._writePlain(this._fillMat, Color.WHITE, 1, inset);
+  }
+
+  /** Parent scale is the bar size in meters. Caps stay round. */
+  setWorldSize(width: number, height: number): void {
+    const w = Math.max(0.2, width);
+    const h = Math.max(0.05, height);
+    this.node.setScale(w, h, 1);
+    const aspect = w / h;
+    this._writeAspect(this._bgMat, aspect);
+    this._writeAspect(this._slotMat, aspect);
+    this._writeAspect(this._fillMat, aspect);
+  }
+
+  private _writePlain(mat: Material | null, color: Color, mode: number, inset: number): void {
+    if (!mat) return;
+    mat.setProperty('mainColor', color);
+    writeFloat(mat, 'barMode', mode);
+    writeFloat(mat, 'inset', inset);
+    writeFloat(mat, 'fillAmount', mode > 0 ? this._ratio : 1);
+  }
+
+  private _writeAspect(mat: Material | null, aspect: number): void {
+    if (!mat) return;
+    writeFloat(mat, 'aspect', aspect);
+  }
+
+  /** Draw over the battlefield. The gate bar sits on the door, in front of the ground. */
+  drawInFront(): void {
+    const depthStencilState = { depthTest: false, depthWrite: false };
+    this._bgMr?.getMaterialInstance(0)?.overridePipelineStates({ depthStencilState });
+    this._slotMr?.getMaterialInstance(0)?.overridePipelineStates({ depthStencilState });
+    this._fillMat.overridePipelineStates({ depthStencilState });
+  }
+
+  private _paintTint(): void {
+    const tint = this._tint;
+    if (!tint) return;
+    this._fillMat.setProperty('mainColor', tint);
+    this._fillMat.setProperty('tintMode', 1);
+    const passes = this._fillMat.passes;
+    for (let i = 0; i < passes.length; i++) {
+      const handle = passes[i].getHandle('tintMode');
+      if (handle !== undefined) passes[i].setUniform(handle, 1);
+    }
   }
 
   setRatio(hp: number, maxHp: number): void {
@@ -245,6 +366,7 @@ export class HpBar {
     if (Math.abs(next - this._ratio) < 1e-4 && this._fill.active === (next > 0.001)) return;
     this._ratio = next;
     this._fill.active = this._ratio > 0.001;
+    this._paintTint();
     if (this._masked) {
       this._fillMat.setProperty('fillAmount', this._ratio);
       const passes = this._fillMat.passes;
@@ -283,7 +405,8 @@ export class HpBar {
     this.node.setWorldRotation(cam.worldRotation);
     const pri = Math.round(800 - dist * 8) * 2;
     if (this._bgMr) this._bgMr.priority = pri;
-    if (this._fillMr) this._fillMr.priority = pri + 1;
+    if (this._slotMr) this._slotMr.priority = pri + 1;
+    if (this._fillMr) this._fillMr.priority = pri + 2;
   }
 
   dispose(): void {

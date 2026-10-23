@@ -1,36 +1,50 @@
 import { Camera, Color, Label, Layers, Node, Sprite, SpriteFrame, UIOpacity, UITransform, Vec3, Widget, resources } from 'cc';
 
 /**
- * Each hit pops its own number on the crown (`blood`, else a short head lift)
- * and floats up on its own. Later shots do not add into a number already in the air.
- * The sideways scatter starts on the crown and eases out over the first part of
- * the pop, so the number flies off the head instead of appearing already aside.
- * 0.8s: scale 1.7 → 1 → 0.5, rise, then fade.
- * Offsets are the original 720 canvas, then ×1.5 onto this 1080 canvas.
- * This camera shows about 80 meters top to bottom, so the rise stays a short
- * lift off the head instead of the old multi-meter screen offset.
- * Hits are white, crits are gold with the crit icon, hurts are red.
- * Crit size, height, and Icon_CriticalRate match XPHero.
+ * Combat text sits on the crown (`blood`, else a short head lift).
+ * Each hit is its own glyph. A newer hit on the same body takes the crown
+ * and steps the older glyphs up one lane, so they spread upward instead of
+ * sitting on each other. Lanes also shift sideways.
+ * The screen keeps a short list. A hit past that list fades the oldest glyph.
+ * A glyph pops on the crown, then drifts up slowly and stays readable.
+ * Normal hits are warm white. Crits are larger orange-red digits.
+ * The burst sits up-left of the digits, the way the old badge did, so the
+ * number does not cover it.
+ * Offsets are the 720 canvas, then ×1.5 onto this 1080 canvas.
+ * This camera shows about 80 meters top to bottom, so the rise stays a
+ * short lift off the head.
  */
 const UI = 1080 / 720;
-const DURATION = 0.8;
-const FONT_HIT = 24;
-const FONT_CRIT = 38;
-const MAX_PER_FRAME = 30;
-/** 720-canvas pixels. Wide enough that a crit icon does not cover the last pop. */
-const SCATTER_X = 72;
-const SCATTER_Y0 = -10;
-const SCATTER_Y1 = 52;
-const SCATTER_GAP = 44;
-/** Share of the pop spent flying from the crown to the scatter landing. */
-const FLY_U = 0.38;
-const CRIT_ICON = 'ui/stat/Icon_CriticalRate';
-/** icon_crit center relative to the number center, in the 720 canvas. */
+/** Living glyphs. Past this, the oldest starts fading. */
+const MAX_LIVE = 18;
+const MAX_QUEUE = 36;
+const MAX_PER_FRAME = 18;
+/** Glyphs kept on one body. A newer hit fades the oldest on that body. */
+const MAX_PER_UNIT = 4;
+const FONT_HIT = 20;
+const FONT_CRIT = 30;
+const DUR_HIT = 1.4;
+const DUR_CRIT = 1.75;
+const DUR_PLAYER = 1.4;
+/** 720-canvas pixels between two glyphs on the same body. */
+const STACK_Y = 32;
+const LANE_X = [0, -18, 16, -8];
+/** Extra crown lift for a crit, in the 720 canvas. */
+const CRIT_LIFT = 6;
+/** Side step when a glyph is retired, so it clears the crown while it fades. */
+const LANE_PEEL = 10;
+const EVICT_FADE = 0.4;
+/** How fast a glyph slides from the crown into its lane. */
+const SLOT_CHASE = 4.5;
+const CRIT_ICON = 'ui/stat/Icon_CritBurst';
+/** Burst center relative to the digits, in the 720 canvas. Up-left, so the star stays visible. */
 const CRIT_ICON_X = -22.8;
 const CRIT_ICON_Y = 17.4;
 const CRIT_ICON_PX = 40 * 1.2475;
-const INK_HIT = new Color(255, 255, 255, 255);
-const INK_CRIT = new Color(255, 244, 0, 255);
+/** Extra height above the crown where a pop starts, in the 720 canvas. */
+const HEAD_LIFT = 28;
+const INK_HIT = new Color(255, 248, 214, 255);
+const INK_CRIT = new Color(255, 64, 22, 255);
 const INK_PLAYER = new Color(248, 95, 95, 255);
 const EDGE = new Color(0, 0, 0, 255);
 
@@ -42,8 +56,15 @@ type Floater = {
   icon: Node;
   fade: UIOpacity;
   life: number;
+  /** Seconds this glyph stays up. Crits outlast normal hits. */
+  dur: number;
+  /** Seconds left in a forced fade. Negative means the glyph is still living. */
+  evict: number;
   layX: number;
   layY: number;
+  /** Shown offset. Chases the lane so a new hit slides up instead of popping. */
+  visX: number;
+  visY: number;
   at: Vec3;
   target: Node | null;
   amount: number;
@@ -96,6 +117,7 @@ export function mountDmgFont(canvas: Node): void {
 
 export function showDmgFont(target: Node, amount: number, kind: Kind): void {
   if (!target?.isValid || amount <= 0) return;
+  if (_queue.length >= MAX_QUEUE) _queue.shift();
   _queue.push({
     node: target,
     amount,
@@ -119,14 +141,19 @@ export function tickDmgFont(dt: number, cam: Camera | null): void {
     const target = floater.target;
     if (target?.isValid) overhead(target, floater.at);
     floater.life += dt;
-    const u = Math.min(1, floater.life / DURATION);
-    const scale = scaleAt(u);
+    const evicting = floater.evict >= 0;
+    if (evicting) floater.evict -= dt;
+    const u = Math.min(1, floater.life / floater.dur);
+    const scale = scaleAt(floater.kind, u);
     floater.node.setScale(scale, scale, 1);
-    floater.fade.opacity = Math.round(alphaAt(u) * 255);
+    let alpha = alphaAt(floater.kind, u);
+    if (evicting) alpha *= Math.max(0, floater.evict / EVICT_FADE);
+    floater.fade.opacity = Math.round(alpha * 255);
+    chaseSlot(floater, dt);
     _world.set(floater.at);
     const shown = place(floater, cam, canvas, offsetYAt(u));
     if (!shown) floater.node.active = false;
-    if (floater.life < DURATION) continue;
+    if (floater.life < floater.dur && !(evicting && floater.evict <= 0)) continue;
     floater.node.active = false;
     floater.target = null;
     _pool.push(floater);
@@ -140,58 +167,116 @@ function resolveKind(player: boolean, crit: boolean): Kind {
   return 'hit';
 }
 
-function paint(floater: Floater): void {
-  const kind = floater.kind;
-  const size = (kind === 'crit' ? FONT_CRIT : FONT_HIT) * UI;
-  floater.lab.string = formatCount(floater.amount);
-  floater.lab.fontSize = size;
-  floater.lab.lineHeight = size + 4;
-  floater.lab.color = kind === 'crit' ? INK_CRIT : kind === 'player' ? INK_PLAYER : INK_HIT;
-  floater.lab.outlineWidth = Math.max(2, Math.round(size * 0.1));
-  floater.icon.active = kind === 'crit';
+function durationOf(kind: Kind): number {
+  if (kind === 'crit') return DUR_CRIT;
+  if (kind === 'player') return DUR_PLAYER;
+  return DUR_HIT;
 }
 
-function scatter(target: Node, floater: Floater): void {
-  let bestX = 0;
-  let bestY = 0;
-  let best = -1;
-  for (let n = 0; n < 10; n++) {
-    const x = Math.random() * (SCATTER_X * 2) - SCATTER_X;
-    const y = SCATTER_Y0 + Math.random() * (SCATTER_Y1 - SCATTER_Y0);
-    let near = 1e9;
-    for (let i = 0; i < _live.length; i++) {
-      const other = _live[i];
-      if (other.target !== target) continue;
-      const dx = x - other.layX;
-      const dy = y - other.layY;
-      const d = dx * dx + dy * dy;
-      if (d < near) near = d;
-    }
-    if (near > best) {
-      best = near;
-      bestX = x;
-      bestY = y;
-    }
-    if (near >= SCATTER_GAP * SCATTER_GAP) break;
+function paint(floater: Floater): void {
+  const kind = floater.kind;
+  const size = Math.round((kind === 'crit' ? FONT_CRIT : FONT_HIT) * UI);
+  floater.lab.string = formatCount(floater.amount);
+  floater.lab.fontSize = size;
+  floater.lab.lineHeight = size + 2;
+  floater.lab.color = kind === 'crit' ? INK_CRIT : kind === 'player' ? INK_PLAYER : INK_HIT;
+  floater.lab.outlineWidth = kind === 'crit' ? 4 : 3;
+  floater.icon.active = kind === 'crit';
+  if (kind !== 'crit') return;
+  const iconPx = CRIT_ICON_PX * UI;
+  floater.icon.getComponent(UITransform)?.setContentSize(iconPx, iconPx);
+  floater.icon.setPosition(CRIT_ICON_X * UI, CRIT_ICON_Y * UI, 0);
+}
+
+/**
+ * Newest glyph lands on the crown. Glyphs already on this body step up,
+ * and each lane takes a different sideways slot.
+ */
+function seat(target: Node, floater: Floater): void {
+  let n = 0;
+  for (let i = 0; i < _live.length; i++) {
+    const other = _live[i];
+    if (other.target !== target || other.evict >= 0) continue;
+    other.layY += STACK_Y;
+    n += 1;
   }
-  floater.layX = bestX;
-  floater.layY = bestY;
+  floater.layX = LANE_X[n % LANE_X.length];
+  floater.layY = floater.kind === 'crit' ? CRIT_LIFT : 0;
+}
+
+function chaseSlot(floater: Floater, dt: number): void {
+  const t = 1 - Math.exp(-SLOT_CHASE * dt);
+  floater.visX += (floater.layX - floater.visX) * t;
+  floater.visY += (floater.layY - floater.visY) * t;
+}
+
+function makeRoom(): void {
+  let n = 0;
+  for (let i = 0; i < _live.length; i++) if (_live[i].evict < 0) n += 1;
+  while (n >= MAX_LIVE) {
+    const old = oldestAlive();
+    if (!old) break;
+    beginFade(old);
+    n -= 1;
+  }
+}
+
+function releaseUnit(target: Node): void {
+  let n = 0;
+  for (let i = 0; i < _live.length; i++) {
+    if (_live[i].target === target && _live[i].evict < 0) n += 1;
+  }
+  while (n >= MAX_PER_UNIT) {
+    const old = oldestOn(target);
+    if (!old) break;
+    beginFade(old);
+    n -= 1;
+  }
+}
+
+function oldestAlive(): Floater | null {
+  for (let i = 0; i < _live.length; i++) {
+    if (_live[i].evict < 0) return _live[i];
+  }
+  return null;
+}
+
+function oldestOn(target: Node): Floater | null {
+  for (let i = 0; i < _live.length; i++) {
+    const floater = _live[i];
+    if (floater.target === target && floater.evict < 0) return floater;
+  }
+  return null;
+}
+
+function beginFade(floater: Floater): void {
+  if (floater.evict >= 0) return;
+  floater.evict = EVICT_FADE;
+  floater.layX += floater.layX >= 0 ? LANE_PEEL : -LANE_PEEL;
+  floater.layY += STACK_Y;
 }
 
 function spawn(job: Pending): void {
   if (!_root?.isValid || !job.node.isValid) return;
   const kind = resolveKind(job.player, job.crit);
+  makeRoom();
+  releaseUnit(job.node);
   const floater = rent();
   floater.life = 0;
+  floater.evict = -1;
+  floater.dur = durationOf(kind);
   floater.kind = kind;
   floater.amount = job.amount;
   floater.target = job.node;
-  scatter(job.node, floater);
-  if (kind === 'crit') floater.layY += 20;
+  seat(job.node, floater);
+  floater.visX = 0;
+  floater.visY = 0;
   overhead(job.node, floater.at);
   paint(floater);
   floater.node.active = true;
-  floater.node.setScale(1.7, 1.7, 1);
+  floater.node.setSiblingIndex(_root.children.length - 1);
+  const peak = scaleAt(kind, 0);
+  floater.node.setScale(peak, peak, 1);
   floater.fade.opacity = 255;
   _live.push(floater);
 }
@@ -225,17 +310,33 @@ function rent(): Floater {
   lab.useSystemFont = true;
   lab.fontFamily = 'Microsoft YaHei';
   lab.isBold = true;
-  lab.fontSize = FONT_HIT * UI;
-  lab.lineHeight = FONT_HIT * UI + 4;
+  lab.fontSize = Math.round(FONT_HIT * UI);
+  lab.lineHeight = Math.round(FONT_HIT * UI) + 2;
   lab.color = INK_HIT;
   lab.enableOutline = true;
   lab.outlineColor = EDGE;
-  lab.outlineWidth = 4;
+  lab.outlineWidth = 2;
   lab.horizontalAlign = Label.HorizontalAlign.CENTER;
   lab.verticalAlign = Label.VerticalAlign.CENTER;
   lab.overflow = Label.Overflow.NONE;
   passThrough(num);
-  return { node, lab, icon, fade, life: 0, layX: 0, layY: 0, at: new Vec3(), target: null, amount: 0, kind: 'hit' };
+  return {
+    node,
+    lab,
+    icon,
+    fade,
+    life: 0,
+    dur: DUR_HIT,
+    evict: -1,
+    layX: 0,
+    layY: 0,
+    visX: 0,
+    visY: 0,
+    at: new Vec3(),
+    target: null,
+    amount: 0,
+    kind: 'hit',
+  };
 }
 
 function loadArt(attempt = 0): void {
@@ -273,9 +374,8 @@ function place(floater: Floater, cam: Camera | null, canvas: Node | null, rise: 
   const parent = floater.node.parent;
   if (!cam?.isValid || !canvas?.isValid || !parent?.isValid) return false;
   if (!projectWorldToUi(cam, _world, parent, _ui)) return false;
-  const fly = flyAt(Math.min(1, floater.life / DURATION));
   floater.node.active = true;
-  floater.node.setPosition(_ui.x + floater.layX * fly * UI, _ui.y + (floater.layY * fly + rise) * UI, 0);
+  floater.node.setPosition(_ui.x + floater.visX * UI, _ui.y + (floater.visY + rise + HEAD_LIFT) * UI, 0);
   return true;
 }
 
@@ -328,29 +428,25 @@ function projectWorldToUi(cam: Camera, world: Vec3, parent: Node, out: Vec3): bo
   return true;
 }
 
-/** DmgFontMotion scaler: 1.7, 1 at 0.146, hold to 0.521, 0.5 at 1. */
-function scaleAt(u: number): number {
-  if (u <= 0.1458) return hermite(0, 1.7, -4.9525, 0.1458, 1, 0, u);
-  if (u <= 0.5208) return 1;
-  return hermite(0.5208, 1, 0, 1, 0.5, 0, u);
+/** Small pop, then hold full size. Crits punch a little harder and stay larger. */
+function scaleAt(kind: Kind, u: number): number {
+  const peak = kind === 'crit' ? 1.35 : 1.18;
+  const hold = kind === 'crit' ? 1.12 : 1;
+  if (u <= 0.16) return hermite(0, peak, -1.6, 0.16, hold, 0, u);
+  if (u <= 0.78) return hold;
+  return hermite(0.78, hold, 0, 1, hold * 0.92, 0, u);
 }
 
-/** 0 on the crown, 1 at the scatter landing. Starts quick, then settles. */
-function flyAt(u: number): number {
-  if (u >= FLY_U) return 1;
-  return hermite(0, 0, 3.4, FLY_U, 1, 0, u);
-}
-
-/** Rise on the 720 canvas, starting on the crown. About 42px on this 1080 canvas. */
+/** Slow lift on the 720 canvas. About 22px on this 1080 canvas, across the whole life. */
 function offsetYAt(u: number): number {
-  if (u <= 0.28) return hermite(0, 0, 140, 0.28, 28, 0, u);
-  return 28;
+  return hermite(0, 0, 18, 1, 14, 0, u);
 }
 
-/** Alpha holds through 0.417, then fades out. */
-function alphaAt(u: number): number {
-  if (u <= 0.4167) return 1;
-  return hermite(0.4167, 1, 0, 1, 0, 0, u);
+/** Stay solid, then fade in the last stretch. Crits hold longer. */
+function alphaAt(kind: Kind, u: number): number {
+  const hold = kind === 'crit' ? 0.8 : 0.72;
+  if (u <= hold) return 1;
+  return hermite(hold, 1, 0, 1, 0, 0, u);
 }
 
 function hermite(t0: number, v0: number, outSlope: number, t1: number, v1: number, inSlope: number, t: number): number {

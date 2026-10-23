@@ -35,6 +35,8 @@ const REBUILD = 0.16;
 
 const CHIP_W = 148;
 const CHIP_H = 68;
+/** Movement below this, in UI pixels, still counts as a tap. */
+const DRAG_SLOP = 16;
 const PANEL_W = 640;
 const PANEL_H = 560;
 const ROW_W = 520;
@@ -59,6 +61,7 @@ const _closeEdge = new Color(180, 140, 110, 200);
 let _finger = false;
 let _linger = false;
 let _open = false;
+const _point = new Vec3();
 
 /** True while a GM control owns the pointer, including the frame it lifts, or the panel is open. */
 export function walkGmHeld(): boolean {
@@ -66,14 +69,22 @@ export function walkGmHeld(): boolean {
 }
 
 /**
- * Corner GM button. It opens a panel; 走区 and 刷怪 are switched inside that panel.
- * G still toggles the walk carpet. The carpet moves when the hull turns, because the
- * camera frame and the base pads are tested with the hull rectangle.
+ * Corner GM button. It stays hidden until G, which shows and hides it.
+ * Drag the button to place it. A tap opens the panel; 走区 and 刷怪 switch inside.
+ * The carpet moves when the hull turns, because the camera frame and the base
+ * pads are tested with the hull rectangle.
  */
 @ccclass('TankWalkGM')
 export class TankWalkGM extends Component {
   private _on = false;
   private _menuOpen = false;
+  private _gDown = false;
+  private _drag = false;
+  private _grabX = 0;
+  private _grabY = 0;
+  private _pressX = 0;
+  private _pressY = 0;
+  private _root: Node | null = null;
   private _pad: Node | null = null;
   private _mr: MeshRenderer | null = null;
   private _mat: Material | null = null;
@@ -91,7 +102,8 @@ export class TankWalkGM extends Component {
   private _stamp = '';
 
   onLoad(): void {
-    input.on(Input.EventType.KEY_DOWN, this._key, this);
+    input.on(Input.EventType.KEY_DOWN, this._keyDown, this);
+    input.on(Input.EventType.KEY_UP, this._keyUp, this);
   }
 
   start(): void {
@@ -100,7 +112,8 @@ export class TankWalkGM extends Component {
   }
 
   onDestroy(): void {
-    input.off(Input.EventType.KEY_DOWN, this._key, this);
+    input.off(Input.EventType.KEY_DOWN, this._keyDown, this);
+    input.off(Input.EventType.KEY_UP, this._keyUp, this);
     this._dropMesh();
     _finger = false;
     _linger = false;
@@ -122,10 +135,88 @@ export class TankWalkGM extends Component {
     this._draw(tank);
   }
 
-  private _key = (event: EventKeyboard): void => {
-    if (event.keyCode !== KeyCode.KEY_G) return;
-    this._toggleWalk();
+  private _keyDown = (event: EventKeyboard): void => {
+    if (event.keyCode !== KeyCode.KEY_G || this._gDown) return;
+    this._gDown = true;
+    this._toggleButton();
   };
+
+  private _keyUp = (event: EventKeyboard): void => {
+    if (event.keyCode !== KeyCode.KEY_G) return;
+    this._gDown = false;
+  };
+
+  private _toggleButton = (): void => {
+    const root = this._root;
+    if (!root) return;
+    const show = !root.active;
+    root.active = show;
+    if (show) {
+      const widget = root.getComponent(Widget);
+      if (widget?.enabled) widget.updateAlignment();
+    } else if (this._menuOpen) {
+      this._toggleMenu();
+    }
+  };
+
+  private _bindChip(root: Node): void {
+    root.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
+      _finger = true;
+      event.propagationStopped = true;
+      this._drag = false;
+      const ui = event.getUILocation();
+      this._pressX = ui.x;
+      this._pressY = ui.y;
+      const parent = root.parent?.getComponent(UITransform);
+      if (!parent) return;
+      parent.convertToNodeSpaceAR(_point.set(ui.x, ui.y, 0), _point);
+      this._grabX = _point.x - root.position.x;
+      this._grabY = _point.y - root.position.y;
+    });
+    root.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
+      _finger = true;
+      event.propagationStopped = true;
+      const ui = event.getUILocation();
+      const dx = ui.x - this._pressX;
+      const dy = ui.y - this._pressY;
+      if (!this._drag && dx * dx + dy * dy < DRAG_SLOP * DRAG_SLOP) return;
+      this._drag = true;
+      const widget = root.getComponent(Widget);
+      if (widget?.enabled) widget.enabled = false;
+      const parent = root.parent?.getComponent(UITransform);
+      if (!parent) return;
+      parent.convertToNodeSpaceAR(_point.set(ui.x, ui.y, 0), _point);
+      root.setPosition(_point.x - this._grabX, _point.y - this._grabY, 0);
+      this._clampChip(root);
+    });
+    root.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
+      _finger = false;
+      _linger = true;
+      event.propagationStopped = true;
+      const dragged = this._drag;
+      this._drag = false;
+      if (!dragged) this._toggleMenu();
+    });
+    root.on(Node.EventType.TOUCH_CANCEL, (event: EventTouch) => {
+      _finger = false;
+      _linger = true;
+      event.propagationStopped = true;
+      this._drag = false;
+    });
+  }
+
+  private _clampChip(root: Node): void {
+    const parent = root.parent?.getComponent(UITransform);
+    const self = root.getComponent(UITransform);
+    if (!parent || !self) return;
+    const minX = -parent.width * 0.5 + self.width * self.anchorX;
+    const maxX = parent.width * 0.5 - self.width * (1 - self.anchorX);
+    const minY = -parent.height * 0.5 + self.height * self.anchorY;
+    const maxY = parent.height * 0.5 - self.height * (1 - self.anchorY);
+    const x = Math.min(maxX, Math.max(minX, root.position.x));
+    const y = Math.min(maxY, Math.max(minY, root.position.y));
+    if (x !== root.position.x || y !== root.position.y) root.setPosition(x, y, 0);
+  }
 
   private _toggleMenu = (): void => {
     this._menuOpen = !this._menuOpen;
@@ -200,9 +291,11 @@ export class TankWalkGM extends Component {
     widget.right = 28;
     widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
     widget.updateAlignment();
+    this._root = root;
     this._chip = plateNode(root, layer, 'bg', CHIP_W, CHIP_H, 14, _chipInk, _chipEdge);
     this._lab = textNode(root, layer, 'txt', 'GM', CHIP_W, CHIP_H, 36, 44);
-    bindTap(root, this._toggleMenu);
+    this._bindChip(root);
+    root.active = false;
 
     const panel = new Node('gm-panel');
     panel.layer = layer;

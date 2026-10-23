@@ -51,8 +51,7 @@ System.register(["./application.js"], function (_export, _context) {
   function topLevelImport(url) {
     return System["import"](url);
   }
-  /** DOM elex splash — hide only when the battlefield signals it is on screen. */
-  var ELEX_SPLASH_MAX_MS = 15000;
+  /** DOM login cover — hide when the player has clicked into the battle. */
   var elexSplashHidden = false;
   function finishElexSplash() {
     if (elexSplashHidden) {
@@ -65,10 +64,10 @@ System.register(["./application.js"], function (_export, _context) {
       el.classList.add('is-done');
       el.style.setProperty('display', 'none', 'important');
       el.style.setProperty('visibility', 'hidden', 'important');
+      el.style.setProperty('pointer-events', 'none', 'important');
     }
   }
   function hideElexSplash() {
-    // Wait for GameBootstrap art-ready; fallback so splash never sticks forever.
     if (window.__elexArtReady) {
       finishElexSplash();
       return;
@@ -78,8 +77,21 @@ System.register(["./application.js"], function (_export, _context) {
       finishElexSplash();
     };
     window.addEventListener('elex-art-ready', onReady);
-    setTimeout(onReady, ELEX_SPLASH_MAX_MS);
   }
+  function armSplashClick() {
+    function mark(ev) {
+      var boot = document.getElementById('boot');
+      if (boot && !boot.classList.contains('is-idle') && !boot.classList.contains('is-done')) return;
+      if (window.__tdSplashClicked) return;
+      window.__tdSplashClicked = true;
+      window.__tdSwallowInputUntil = Date.now() + 500;
+      if (ev.stopPropagation) ev.stopPropagation();
+      if (ev.preventDefault) ev.preventDefault();
+    }
+    window.addEventListener('pointerdown', mark, true);
+    window.addEventListener('touchstart', mark, true);
+  }
+  armSplashClick();
   return {
     setters: [function (_applicationJs) {
       Application = _applicationJs.Application;
@@ -142,7 +154,11 @@ System.register(["./application.js"], function (_export, _context) {
 
             var launchScene = engine.settings.querySettings('launch', 'launchScene');
             if (launchScene) {
-              engine.director.preloadScene(launchScene, null, function (error) {
+              engine.director.preloadScene(launchScene, function (completed, total) {
+                if (total > 0 && window.__tdSetLoadProgress) {
+                  window.__tdSetLoadProgress(0.12 + 0.82 * (completed / total));
+                }
+              }, function (error) {
                 if (error) {
                   console.warn("首场景预加载失败，将按原流程继续加载：" + launchScene, error);
                 }
@@ -157,7 +173,7 @@ System.register(["./application.js"], function (_export, _context) {
         hideElexSplash();
       })["catch"](function (err) {
         console.error(err);
-        hideElexSplash();
+        finishElexSplash();
       });
     }
   };

@@ -18,17 +18,33 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
 
         <link rel="stylesheet" type="text/css" href="./index.css" />
+        <link rel="stylesheet" type="text/css" href="./loading-boot.css" />
         <style>
             /* Replace Cocos preview splash with elex branding. */
-            #splash {
+            #splash:not(.is-done) {
+                position: absolute !important;
+                inset: 0 !important;
+                display: block !important;
                 visibility: visible !important;
-                z-index: 9999 !important;
+                opacity: 1 !important;
+                z-index: 2147483646 !important;
                 background: #000 !important;
+                transform: translateZ(0);
+            }
+            #Cocos3dGameContainer,
+            #GameCanvas {
+                position: relative;
+                z-index: 0 !important;
             }
             #splash.is-done {
                 display: none !important;
             }
             /* <img> avoids CSS-background race: splash can dismiss before url() decodes. */
+            #splash,
+            #splash .elex-splash {
+                pointer-events: auto;
+                cursor: pointer;
+            }
             #splash .elex-splash {
                 position: absolute;
                 inset: 0;
@@ -36,7 +52,6 @@
                 height: 100%;
                 object-fit: cover;
                 display: block;
-                pointer-events: none;
                 background: #000;
             }
             #splash .progress-bar {
@@ -91,8 +106,21 @@
                         <canvas id="GameCanvas" tabindex="-1" style="background-color: #000;"></canvas>
                     </div>
                     <div id="splash">
-                        <img class="elex-splash" src="./splash_screen.png" alt="elex" />
+                        <img class="elex-splash" src="./splash_screen.webp" alt="elex" />
+                        <svg class="splash-start" viewBox="0 0 860 156" role="img" aria-label="开始游戏">
+                            <text x="430" y="108" text-anchor="middle" font-family="ZCOOL KuaiLe, PingFang SC, Microsoft YaHei, sans-serif" font-size="96" fill="#fff2d2" stroke="#281c0e" stroke-opacity="0.9" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill">开始游戏</text>
+                        </svg>
                         <div class="progress-bar stripes"><span></span></div>
+                    </div>
+                    <div id="boot" class="is-idle">
+                        <img class="boot-bg" src="./loading_bg.webp" alt="" />
+                        <div class="boot-stack">
+                            <div class="boot-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="加载进度">
+                                <img class="boot-track" src="./load-bar-track.png" alt="" />
+                                <div class="boot-mask"><img class="boot-fill" src="./load-bar-fill.png" alt="" /></div>
+                            </div>
+                            <div class="boot-label">加载中...</div>
+                        </div>
                     </div>
                     <div id="bulletin">
                         <div id="sceneIsEmpty" class="inner"><%=tip_sceneIsEmpty%></div>
@@ -106,11 +134,13 @@
             </div>
         </div>
         <%- include(cocosTemplate, {}) %>
-        <link rel="preload" as="image" href="./splash_screen.png" />
+        <link rel="preload" as="image" href="./loading_bg.webp" />
+        <link rel="preload" as="image" href="./splash_screen.webp" />
+        <script src="./loading-boot.js"></script>
         <script>
             // Patch engine splash before bootstrap: no Cocos logo.
             // Elex art is the #splash <img> (reliable); engine canvas stays black.
-            // (Previously base64:'./splash_screen.png' was invalid and raced to a blank canvas.)
+            // (Previously base64:'./splash_screen.webp' was invalid and raced to a blank canvas.)
             (function () {
                 var settings = window._CCSettings;
                 if (!settings) {
@@ -127,10 +157,21 @@
                 };
             })();
 
-            // Remove DOM splash only when GameBootstrap says login shell is ready.
-            // No min-delay after ready — that caused a black/blue gap before the title.
+            // Stay on the login art until the player clicks. The battle scene
+            // hides #splash by dispatching elex-art-ready.
             (function () {
-                var MAX_MS = 15000;
+                function mark(ev) {
+                    var boot = document.getElementById('boot');
+                    if (boot && !boot.classList.contains('is-idle') && !boot.classList.contains('is-done')) return;
+                    if (window.__tdSplashClicked) return;
+                    window.__tdSplashClicked = true;
+                    window.__tdSwallowInputUntil = Date.now() + 500;
+                    if (ev.stopPropagation) ev.stopPropagation();
+                    if (ev.preventDefault) ev.preventDefault();
+                }
+                window.addEventListener('pointerdown', mark, true);
+                window.addEventListener('touchstart', mark, true);
+
                 var done = false;
                 function hideSplash() {
                     if (done) return;
@@ -141,10 +182,10 @@
                     el.classList.add('is-done');
                     el.style.setProperty('display', 'none', 'important');
                     el.style.setProperty('visibility', 'hidden', 'important');
+                    el.style.setProperty('pointer-events', 'none', 'important');
                 }
                 if (window.__elexArtReady) hideSplash();
                 else window.addEventListener('elex-art-ready', hideSplash);
-                setTimeout(hideSplash, MAX_MS);
             })();
         </script>
         <script src="./game-frame.js"></script>

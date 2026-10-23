@@ -10,6 +10,7 @@ import {
   assetManager,
   instantiate,
 } from 'cc';
+import { loginPointerBlocked } from '../game/DomSplash.ts';
 
 const { ccclass } = _decorator;
 
@@ -142,6 +143,7 @@ export class TankStick extends Component {
   }
 
   private _begin = (event: EventTouch): void => {
+    if (loginPointerBlocked()) return;
     const touch = event.touch;
     if (!touch || (this._held && !this._release)) return;
     const rootUi = this.node.getComponent(UITransform);

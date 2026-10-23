@@ -18,6 +18,7 @@ import {
   input,
   instantiate,
 } from 'cc';
+import { loginPointerBlocked } from '../game/DomSplash.ts';
 import { sealBaseAura, slotPad } from '../effect/BaseAura.ts';
 import { mountBaseGems, sealBaseGem } from '../effect/BaseGem.ts';
 import { LaserPad } from '../effect/LaserPad.ts';
@@ -36,7 +37,7 @@ const _axisX = new Vec3();
 const _axisY = new Vec3();
 const _axisZ = new Vec3();
 const _hit = new Vec3();
-const PLANT_KINDS: Kind[] = ['10000', '10002', '10004'];
+const PLANT_KINDS: Kind[] = ['10010', '10011'];
 const TAP_SLOP = 36;
 const _ghostOk = new Color(57, 255, 20, 255);
 const _ghostBad = new Color(255, 96, 88, 255);
@@ -45,12 +46,14 @@ const TURRET_10000 = 'c4e8a1b2-7d3f-4a6e-9b10-2f5c8d7e6a01';
 const TURRET_10001 = 'd4e5f6a7-8b9c-4d0e-a1f2-10001bb10001';
 const TURRET_10002 = 'c3a91e20-6d4e-4b19-8a77-10002bb10002';
 const TURRET_10004 = 'e5c13a42-9b60-4d71-a088-10004bb10004';
+const TURRET_10010 = 'b8d14f02-6a37-4e85-9c21-10010bb10010';
+const TURRET_10011 = 'e1a48e36-af7b-4c09-8d65-10011bb10011';
 
-type Kind = '10000' | '10001' | '10002' | '10004';
+type Kind = '10000' | '10001' | '10002' | '10004' | '10010' | '10011';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
 
 /**
- * A tap on an empty base builds 10000, 10002, or 10004, chosen at random.
+ * A tap on an empty base builds 10010 or 10011.
  * The floating crystal goes away, then the build hologram and digital rain play.
  * Square-grid placement remains for an armed turret.
  */
@@ -152,6 +155,8 @@ export class TurretPlacer extends Component {
     this._load10001(scene);
     this._load10002(scene);
     this._load10004(scene);
+    this._load10010(scene);
+    this._load10011(scene);
     this._loadPad(scene);
     mountBaseGems(scene);
   }
@@ -161,7 +166,7 @@ export class TurretPlacer extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10004') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10004' || name === '10010' || name === '10011') found.push(kids[i]);
     }
     return found;
   }
@@ -235,6 +240,42 @@ export class TurretPlacer extends Component {
       this._silence(root);
       this._remember('10004', root);
       if (this._kind === '10004') this._makeGhost();
+    });
+  }
+
+  private _load10010(scene: Node): void {
+    if (this._packs.has('10010')) return;
+    assetManager.loadAny({ uuid: TURRET_10010 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10010 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10010';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10010', root);
+      if (this._kind === '10010') this._makeGhost();
+    });
+  }
+
+  private _load10011(scene: Node): void {
+    if (this._packs.has('10011')) return;
+    assetManager.loadAny({ uuid: TURRET_10011 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10011 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10011';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10011', root);
+      if (this._kind === '10011') this._makeGhost();
     });
   }
 
@@ -333,6 +374,7 @@ export class TurretPlacer extends Component {
   }
 
   private _onMouseDown = (event: EventMouse): void => {
+    if (loginPointerBlocked()) return;
     if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
     const p = event.getLocation();
     this._notePress(p.x, p.y);
@@ -345,6 +387,7 @@ export class TurretPlacer extends Component {
   };
 
   private _onMouseUp = (event: EventMouse): void => {
+    if (loginPointerBlocked()) return;
     if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
     if (walkGmHeld()) return;
     const p = event.getLocation();
@@ -355,6 +398,7 @@ export class TurretPlacer extends Component {
   };
 
   private _onTouch = (event: EventTouch): void => {
+    if (loginPointerBlocked()) return;
     const p = event.getLocation();
     if (event.type === Input.EventType.TOUCH_START) this._notePress(p.x, p.y);
     if (walkGmHeld()) return;
@@ -364,6 +408,7 @@ export class TurretPlacer extends Component {
   };
 
   private _onTouchEnd = (event: EventTouch): void => {
+    if (loginPointerBlocked()) return;
     if (walkGmHeld()) return;
     const p = event.getLocation();
     if (this._tapSlot(p.x, p.y)) return;
@@ -440,7 +485,7 @@ export class TurretPlacer extends Component {
     root.setWorldPosition(p.x + (x - fitted.cx), footY, p.z + (z - fitted.cz));
   }
 
-  /** Drop 10000, 10002, or 10004 on this pad, clear its crystal, and play the build effect. */
+  /** Drop 10010 or 10011 on this pad, clear its crystal, and play the build effect. */
   private _plantAt(slot: Node, x: number, z: number): void {
     if (this._bases.has(slot)) return;
     const kind = this._rollKind();

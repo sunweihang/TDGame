@@ -80,9 +80,11 @@ function bodyMat(): Material {
   if (_bodyMat) return _bodyMat;
   const mat = new Material();
   mat.initialize({ effectName: 'builtin-standard', technique: 0 });
-  mat.setProperty('mainColor', new Color(214, 132, 38, 255));
-  mat.setProperty('roughness', 0.4);
-  mat.setProperty('metallic', 0.28);
+  mat.setProperty('mainColor', new Color(255, 186, 72, 255));
+  mat.setProperty('emissive', new Color(255, 154, 42, 255));
+  mat.setProperty('emissiveScale', new Vec3(1.35, 0.95, 0.4));
+  mat.setProperty('roughness', 0.34);
+  mat.setProperty('metallic', 0.16);
   _bodyMat = mat;
   return mat;
 }
@@ -216,7 +218,7 @@ function attachRibbon(ps: ParticleSystem, width: number, life: number): boolean 
   (ps as ParticleSystem & { trailModule: Ribbon }).trailModule = trail;
   trail.mode = 0;
   trail.lifeTime.constant = life;
-  trail.minParticleDistance = 0.05;
+  trail.minParticleDistance = 0.22;
   trail.space = 0;
   trail.existWithParticles = true;
   trail.widthFromParticle = false;
@@ -225,11 +227,11 @@ function attachRibbon(ps: ParticleSystem, width: number, life: number): boolean 
   trail.colorOverTrail.mode = GradientRange.Mode.Gradient;
   trail.colorOverTrail.gradient.setKeys(
     [
-      keyColor(new Color(255, 244, 190, 255), 0),
-      keyColor(new Color(255, 140, 20, 255), 0.4),
+      keyColor(new Color(255, 196, 80, 255), 0),
+      keyColor(new Color(255, 120, 24, 255), 0.45),
       keyColor(new Color(255, 60, 0, 0), 1),
     ],
-    [keyAlpha(255, 0), keyAlpha(170, 0.35), keyAlpha(0, 1)],
+    [keyAlpha(150, 0), keyAlpha(70, 0.4), keyAlpha(0, 1)],
   );
   // onLoad inits a trail only when it is already enabled, and that runs after
   // the processor exists. The public setter crashes if the module is still unbound.
@@ -243,7 +245,7 @@ function attachRibbon(ps: ParticleSystem, width: number, life: number): boolean 
   return true;
 }
 
-function mountTrail(node: Node, height: number): void {
+function mountTrail(node: Node, height: number, speed: number): void {
   const ps = node.addComponent(ParticleSystem);
   ps.loop = false;
   ps.playOnAwake = true;
@@ -264,8 +266,10 @@ function mountTrail(node: Node, height: number): void {
   burst.repeatCount = 1;
   burst.count.constant = 1;
   ps.bursts.push(burst);
-  const width = Math.max(0.08 * BULLET_DRAW, height * 0.055 * BULLET_DRAW);
-  const life = 0.02;
+  // A long additive ribbon from every muzzle of one volley blends into one slab.
+  // Keep a short tail, thinner than the slug, so each bolt stays its own shape.
+  const width = Math.max(0.12, height * 0.07 * BULLET_DRAW);
+  const life = Math.min(0.04, 1.25 / Math.max(speed, 1));
   if (!attachRibbon(ps, width, life)) {
     ps.simulationSpace = 0;
     ps.rateOverDistance.constant = 10;
@@ -312,7 +316,7 @@ export class BlueLaserBolt extends Component {
     trail.active = false;
     this.node.addChild(trail);
     trail.setPosition(0, 0, -this._height * 0.3);
-    mountTrail(trail, this._height);
+    mountTrail(trail, this._height, this._speed);
     trail.active = true;
 
     const mesh = boltMesh();

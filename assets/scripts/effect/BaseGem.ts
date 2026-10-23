@@ -12,7 +12,7 @@ import {
   Vec3,
   utils,
 } from 'cc';
-import { slotPad } from './BaseAura.ts';
+import { effectCenter, slotPad } from './BaseAura.ts';
 
 const { ccclass } = _decorator;
 
@@ -115,16 +115,17 @@ export function sealBaseGem(slot: Node): void {
 export function addBaseGem(slot: Node): void {
   if (!slot.isValid || _sealed.has(slot) || slot.getChildByName('BaseGem')) return;
   const pad = slotPad(slot);
-  if (!pad || pad.radius < 0.2) return;
+  const spot = effectCenter(slot);
+  if (!pad || !spot || pad.radius < 0.2) return;
   const width = pad.radius * 2 * 1.05;
   const height = width * (TEX_H / TEX_W);
   const root = new Node('BaseGem');
   root.layer = slot.layer;
   slot.addChild(root);
   root.setWorldPosition(
-    pad.x + UP_X * height * LIFT + TO_X * 0.35,
+    spot.x + UP_X * height * LIFT + TO_X * 0.35,
     STONE_Y + UP_Y * height * LIFT + TO_Y * 0.35,
-    pad.z + UP_Z * height * LIFT + TO_Z * 0.35,
+    spot.z + UP_Z * height * LIFT + TO_Z * 0.35,
   );
   root.setRotationFromEuler(PITCH, 225, 0);
   root.setScale(width, height, 1);

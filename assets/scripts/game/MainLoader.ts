@@ -1,5 +1,5 @@
 import { _decorator, Component, SceneAsset, director } from 'cc';
-import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
+import { holdDomSplash, isSplashClicked, releaseDomSplash, splashCoverIsUp } from './DomSplash.ts';
 
 const { ccclass, property } = _decorator;
 
@@ -10,6 +10,7 @@ export class MainLoader extends Component {
   gameScene: SceneAsset | null = null;
 
   private _released = false;
+  private _started = false;
 
   onLoad(): void {
     this._holdSplash();
@@ -17,18 +18,39 @@ export class MainLoader extends Component {
   }
 
   start(): void {
+    if (!this.gameScene) {
+      this._releaseSplash();
+      return;
+    }
+    if (!splashCoverIsUp() || isSplashClicked()) {
+      this._enterLevel();
+      return;
+    }
+    const poll = () => {
+      if (!this.isValid || this._started) return;
+      if (isSplashClicked()) {
+        this._enterLevel();
+        return;
+      }
+      setTimeout(poll, 50);
+    };
+    setTimeout(poll, 50);
+  }
+
+  onDestroy(): void {
+    this.unschedule(this._holdSplash);
+  }
+
+  /** Login stays up until the tap. The level scene and its models load under the bar. */
+  private _enterLevel(): void {
+    if (this._started) return;
+    this._started = true;
     const scene = this.gameScene;
     if (!scene) {
       this._releaseSplash();
       return;
     }
-    this.scheduleOnce(() => {
-      director.runScene(scene);
-    }, 0);
-  }
-
-  onDestroy(): void {
-    this.unschedule(this._holdSplash);
+    director.runScene(scene);
   }
 
   private _holdSplash = (): void => {

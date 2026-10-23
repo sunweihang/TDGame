@@ -4,6 +4,8 @@ import {
   Camera,
   Color,
   Component,
+  Director,
+  director,
   DirectionalLight,
   gfx,
   instantiate,
@@ -12,12 +14,13 @@ import {
   Node,
   Prefab,
   Quat,
+  screen,
   Texture2D,
   UITransform,
   Vec3,
   Widget,
 } from 'cc';
-import { holdDomSplash, releaseDomSplash } from './DomSplash.ts';
+import { holdDomSplash, isSplashClicked, releaseDomSplash, signalLoadReady, splashCoverIsUp } from './DomSplash.ts';
 import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
@@ -178,14 +181,16 @@ function mountSlots(scene: Node): void {
 @ccclass('GameBootstrap')
 export class GameBootstrap extends Component {
   private _splashReleased = false;
+  private _enterArmed = false;
+  private _steady = 0;
+  private _seenW = -1;
+  private _seenH = -1;
   private _cam: Camera | null = null;
 
   onLoad(): void {
     this._splashReleased = false;
     holdDomSplash();
     this.schedule(this._holdSplashTick, 0);
-    this._releaseSplashAfterDraws(3);
-    setTimeout(() => releaseDomSplash(), 800);
     try {
       if (!this.getComponent(TurretGun)) this.addComponent(TurretGun);
       if (!this.getComponent(TurretPlacer)) this.addComponent(TurretPlacer);
@@ -200,7 +205,9 @@ export class GameBootstrap extends Component {
         mountLight(scene);
       }
       const canvas = scene?.getChildByName('Canvas');
-      if (canvas) mountDmgFont(canvas);
+      if (canvas) {
+        mountDmgFont(canvas);
+      }
       warmupHpBar();
       warmupMuzzleFlash();
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
@@ -208,8 +215,11 @@ export class GameBootstrap extends Component {
       this._fitFrame();
     } catch (err) {
       console.error('[GameBootstrap] 战场初始化失败', err);
-      this._finishSplash();
     }
+    // Fit even while logic is paused, so the frame under the cover matches the window.
+    director.on(Director.EVENT_BEFORE_DRAW, this._coverFrame, this);
+    // After this frame's activation, so pause does not cut off the rest of the scene.
+    setTimeout(() => this._waitToEnter(), 0);
   }
 
   update(dt: number): void {
@@ -330,8 +340,27 @@ export class GameBootstrap extends Component {
   }
 
   onDestroy(): void {
+    director.off(Director.EVENT_BEFORE_DRAW, this._coverFrame, this);
     this.unschedule(this._holdSplashTick);
   }
+
+  /** Keep fitting under the login art. Reveal only a frame that already matched the window. */
+  private _coverFrame = (): void => {
+    if (this._splashReleased) return;
+    const win = screen.windowSize;
+    const changed = win.width !== this._seenW || win.height !== this._seenH;
+    this._seenW = win.width;
+    this._seenH = win.height;
+    this._fitFrame();
+    if (!this._enterArmed || win.width < 2) return;
+    if (changed) {
+      this._steady = 0;
+      return;
+    }
+    this._steady += 1;
+    if (this._steady < 2) return;
+    director.once(Director.EVENT_AFTER_DRAW, () => this._finishSplash());
+  };
 
   private _holdSplashTick = (): void => {
     if (this._splashReleased) {
@@ -341,19 +370,38 @@ export class GameBootstrap extends Component {
     holdDomSplash();
   };
 
-  /** Keep the elex splash until a few battlefield frames have drawn. */
-  private _releaseSplashAfterDraws(left: number): void {
-    if (left <= 0) {
-      this._finishSplash();
+  /** The login tap already happened. Reveal only after this frame has settled. */
+  private _waitToEnter(): void {
+    if (!this.isValid || this._splashReleased) return;
+    const enter = () => {
+      if (this._enterArmed) return;
+      this._enterArmed = true;
+      this._steady = 0;
+      if (director.isPaused()) director.resume();
+      if (!splashCoverIsUp()) this._finishSplash();
+    };
+    if (!splashCoverIsUp() || isSplashClicked()) {
+      enter();
       return;
     }
-    this.scheduleOnce(() => this._releaseSplashAfterDraws(left - 1), 0);
+    director.pause();
+    const poll = () => {
+      if (!this.isValid || this._splashReleased) return;
+      if (isSplashClicked()) {
+        enter();
+        return;
+      }
+      setTimeout(poll, 50);
+    };
+    setTimeout(poll, 50);
   }
 
   private _finishSplash(): void {
     if (this._splashReleased) return;
     this._splashReleased = true;
+    director.off(Director.EVENT_BEFORE_DRAW, this._coverFrame, this);
     this.unschedule(this._holdSplashTick);
+    signalLoadReady();
     releaseDomSplash();
   }
 }

@@ -22,6 +22,21 @@ tools/max/*.log
 tools/max/compile.txt
 tools/max/compile-utf8.txt
 
+# Local editor, browser profile, and one-off scratch.
+.creator/
+tools/chrome-profile/
+tools/chrome-err.txt
+tools/chrome-out.txt
+tools/edge-err.txt
+tools/edge-out.txt
+tools/_asar_hits.txt
+tools/_gltf.ccc
+tools/tmp/
+tools/effect-backup/
+# Duplicate of assets/models/turret/turret_basecolor.png
+assets/models/turret/turret_animated.fbm/
+assets/models/turret/turret_animated.fbm.meta
+
 #//////////////////////////
 # VSCode
 #//////////////////////////

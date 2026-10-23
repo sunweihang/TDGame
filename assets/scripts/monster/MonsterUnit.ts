@@ -3,7 +3,7 @@ import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
 import { playBloodSpray } from '../effect/BloodSpray.ts';
 import { showDmgFont } from '../effect/DmgFont.ts';
 import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar } from '../effect/HpBar.ts';
-import { pastWall, touchWall } from '../effect/WallFlash.ts';
+import { hurtGate, pastWall } from '../effect/WallFlash.ts';
 import { easeSkirt, skirtPlan } from './MonsterSkirt.ts';
 
 const { ccclass } = _decorator;
@@ -11,7 +11,7 @@ const { ccclass } = _decorator;
 const SPEED = 3.4;
 const HIT_R = 1.86;
 const FOOT_Y = 0.02;
-/** Each hit rolls this. A crit deals twice the hit and pops the gold number. */
+/** Each hit rolls this. A crit deals twice the hit and pops the larger orange-red number. */
 const CRIT_CHANCE = 0.2;
 const CRIT_MUL = 2;
 /**
@@ -694,7 +694,7 @@ export class MonsterUnit extends Component {
     return pastWall(scene, a[0] + (b[0] - a[0]) * u + this._ox, a[1] + (b[1] - a[1]) * u + this._oz, slack);
   }
 
-  /** Touching the gate removes the monster and pulses the wall. */
+  /** Touching the gate spends this monster on the door and pulses the wall. */
   private _guardWall(): void {
     if (this._phase === 'dead' || !this._route) return;
     if (!this._feetInWall(8)) return;
@@ -702,7 +702,7 @@ export class MonsterUnit extends Component {
   }
 
   private _leaveAtWall(): void {
-    touchWall();
+    hurtGate(this.hp);
     this._phase = 'dead';
     this._route = null;
     this.hp = 0;

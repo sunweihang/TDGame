@@ -16,15 +16,22 @@ import {
 
 const { ccclass } = _decorator;
 
-/** Stone center in slot-face-on.png, as a fraction of the card size from its center. */
+/**
+ * Planted-turret seat on slot-face-on.png, as a fraction of the card from its center.
+ * This sits forward of the painted stone so the gun reads in the middle of the base.
+ */
 const GLOW_RIGHT = 0.0856;
 const GLOW_UP = 0.26;
+/** Empty-base picture. The stone center before the turret seat moved forward. */
+const EFFECT_RIGHT = 0.0736;
+const EFFECT_UP = 0.0278;
 /** Stone radius over the card width. The painted shadow sits outside this disc. */
 const DISC_HALF = 0.4003;
 /** The card is a billboard, so any height on the view ray lands on the same screen spot. */
 const PAD_Y = 0.6;
 
 const _world = new Vec3();
+const _effect = new Vec3();
 const _right = new Vec3();
 const _up = new Vec3();
 const _fwd = new Vec3();
@@ -46,7 +53,16 @@ const _jobs: AuraJob[] = [];
 
 export type SlotPad = { x: number; z: number; radius: number; column: number; top: number };
 
-/** Ground center of the stone pad, plus the column that stands on it. */
+/** Ground point for the empty-base picture. Planting keeps slotPad. */
+export function effectCenter(slot: Node): Vec3 | null {
+  if (!slot.isValid) return null;
+  const face = slot.getChildByName('Face');
+  if (!face?.isValid) return null;
+  if (!project(face, EFFECT_RIGHT, EFFECT_UP, _effect)) return null;
+  return _effect;
+}
+
+/** Ground center where a planted turret sits, plus the column that stands on it. */
 export function slotPad(slot: Node): SlotPad | null {
   if (!slot.isValid) return null;
   const face = slot.getChildByName('Face');
@@ -153,8 +169,14 @@ class BaseAuraView extends Component {
   }
 }
 
-/** Stone-pad center on the ground. Null when the card does not face down toward it. */
+/** Turret seat on the ground. Null when the card does not face down toward it. */
 function padCenter(face: Node): Vec3 | null {
+  if (!project(face, GLOW_RIGHT, GLOW_UP, _world)) return null;
+  return _world;
+}
+
+/** Card fraction projected onto the stone plane. */
+function project(face: Node, rightFrac: number, upFrac: number, out: Vec3): boolean {
   face.updateWorldTransform();
   const rot = face.worldRotation;
   const width = Math.abs(face.worldScale.x);
@@ -162,12 +184,12 @@ function padCenter(face: Node): Vec3 | null {
   Vec3.transformQuat(_right, Vec3.UNIT_X, rot);
   Vec3.transformQuat(_up, Vec3.UNIT_Y, rot);
   Vec3.transformQuat(_fwd, Vec3.FORWARD, rot);
-  if (_fwd.y > -0.05) return null;
-  _world.set(face.worldPosition);
-  Vec3.scaleAndAdd(_world, _world, _right, width * GLOW_RIGHT);
-  Vec3.scaleAndAdd(_world, _world, _up, height * GLOW_UP);
-  Vec3.scaleAndAdd(_world, _world, _fwd, (PAD_Y - _world.y) / _fwd.y);
-  return _world;
+  if (_fwd.y > -0.05) return false;
+  out.set(face.worldPosition);
+  Vec3.scaleAndAdd(out, out, _right, width * rightFrac);
+  Vec3.scaleAndAdd(out, out, _up, height * upFrac);
+  Vec3.scaleAndAdd(out, out, _fwd, (PAD_Y - out.y) / _fwd.y);
+  return true;
 }
 
 function bindColumn(mr: MeshRenderer): void {

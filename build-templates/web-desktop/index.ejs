@@ -18,7 +18,9 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
 
     <link rel="stylesheet" type="text/css" href="<%= cssUrl %>"/>
-    <link rel="preload" as="image" href="./splash_screen.png"/>
+    <link rel="stylesheet" type="text/css" href="./loading-boot.css"/>
+    <link rel="preload" as="image" href="./loading_bg.webp"/>
+    <link rel="preload" as="image" href="./splash_screen.webp"/>
     <link rel="icon" href="favicon.ico"/>
   </head>
   <body>
@@ -27,9 +29,23 @@
         <canvas id="GameCanvas" width="<%= previewWidth %>" height="<%= previewHeight %>" tabindex="99"></canvas>
       </div>
       <div id="splash">
-        <img class="elex-splash" src="./splash_screen.png" alt="elex"/>
+        <img class="elex-splash" src="./splash_screen.webp" alt="elex"/>
+        <svg class="splash-start" viewBox="0 0 860 156" role="img" aria-label="开始游戏">
+          <text x="430" y="108" text-anchor="middle" font-family="ZCOOL KuaiLe, PingFang SC, Microsoft YaHei, sans-serif" font-size="96" fill="#fff2d2" stroke="#281c0e" stroke-opacity="0.9" stroke-width="16" stroke-linejoin="round" paint-order="stroke fill">开始游戏</text>
+        </svg>
+      </div>
+      <div id="boot" class="is-idle">
+        <img class="boot-bg" src="./loading_bg.webp" alt=""/>
+        <div class="boot-stack">
+          <div class="boot-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="加载进度">
+            <img class="boot-track" src="./load-bar-track.png" alt=""/>
+            <div class="boot-mask"><img class="boot-fill" src="./load-bar-fill.png" alt=""/></div>
+          </div>
+          <div class="boot-label">加载中...</div>
+        </div>
       </div>
     </div>
+    <script src="./loading-boot.js"></script>
     <%- include(cocosTemplate, {}) %>
   </body>
 </html>

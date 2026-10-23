@@ -72,12 +72,22 @@ body {
 }
 
 /* Elex splash: DOM <img> so it cannot lose a CSS/base64 race to a blank canvas. */
-#splash {
-  position: absolute;
-  inset: 0;
-  z-index: 9999;
-  background: #000;
-  pointer-events: none;
+#splash:not(.is-done) {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 2147483646 !important;
+  background: #000 !important;
+  pointer-events: auto;
+  cursor: pointer;
+  transform: translateZ(0);
+}
+#Cocos3dGameContainer,
+#GameCanvas {
+  position: relative;
+  z-index: 0 !important;
 }
 #splash.is-done {
   display: none !important;

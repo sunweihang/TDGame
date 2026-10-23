@@ -8,6 +8,29 @@ CCEffect %{
         mainTexture: { value: white }
         mainColor:   { value: [1.0, 1.0, 1.0, 1.0], editor: { type: color } }
         fillAmount:  { value: 1.0 }
+        tintMode:    { value: 0.0 }
+      rasterizerState:
+        cullMode: none
+      depthStencilState:
+        depthTest: true
+        depthWrite: false
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+  - name: plain
+    passes:
+    - vert: hp-fill-vs:vert
+      frag: hp-plain-fs:frag
+      properties:
+        mainColor:  { value: [1.0, 1.0, 1.0, 0.3], editor: { type: color } }
+        fillAmount: { value: 1.0 }
+        aspect:     { value: 8.0 }
+        barMode:    { value: 0.0 }
+        inset:      { value: 0.0 }
       rasterizerState:
         cullMode: none
       depthStencilState:
@@ -53,6 +76,7 @@ CCProgram hp-fill-fs %{
   uniform Constant {
     vec4 mainColor;
     float fillAmount;
+    float tintMode;
   };
 
   vec4 frag () {
@@ -60,6 +84,44 @@ CCProgram hp-fill-fs %{
     float mask = 1.0 - smoothstep(fillAmount - 0.006, fillAmount + 0.003, v_fill);
     float alpha = tex.a * mainColor.a * mask;
     if (alpha < 0.02) discard;
-    return CCFragOutput(vec4(tex.rgb * mainColor.rgb, alpha));
+    float shade = max(tex.r, max(tex.g, tex.b));
+    vec3 rgb = mix(tex.rgb * mainColor.rgb, mainColor.rgb * shade, clamp(tintMode, 0.0, 1.0));
+    return CCFragOutput(vec4(rgb, alpha));
+  }
+}%
+
+CCProgram hp-plain-fs %{
+  precision highp float;
+  #include <legacy/output>
+
+  in vec2 v_uv;
+  in float v_fill;
+  uniform Constant {
+    vec4 mainColor;
+    float fillAmount;
+    float aspect;
+    float barMode;
+    float inset;
+  };
+
+  vec4 frag () {
+    float span = max(aspect, 1.0);
+    float rad = max(0.08, 0.5 - inset);
+    float halfLen = max(span * 0.5 - 0.5 - inset, 0.0);
+    vec2 p = vec2((v_uv.x - 0.5) * span, v_uv.y - 0.5);
+    float along = clamp(p.x, -halfLen, halfLen);
+    float dist = length(p - vec2(along, 0.0)) - rad;
+    float inside = 1.0 - smoothstep(-0.02, 0.02, dist);
+    float clipMask = 1.0 - smoothstep(fillAmount - 0.004, fillAmount + 0.002, v_fill);
+    float mask = inside * mix(1.0, clipMask, step(0.5, barMode));
+    float y = v_uv.y;
+    vec3 gold = mix(vec3(1.0, 0.95, 0.55), vec3(1.0, 0.76, 0.16), smoothstep(0.02, 0.42, y));
+    gold = mix(gold, vec3(0.93, 0.52, 0.08), smoothstep(0.48, 1.0, y));
+    float shine = exp(-pow((y - 0.2) / 0.11, 2.0));
+    gold = mix(gold, vec3(1.0, 0.97, 0.78), shine * 0.65);
+    vec3 rgb = mix(mainColor.rgb, gold, step(0.5, barMode));
+    float alpha = mask * mix(mainColor.a, 1.0, step(0.5, barMode));
+    if (alpha < 0.02) discard;
+    return CCFragOutput(vec4(rgb, alpha));
   }
 }%

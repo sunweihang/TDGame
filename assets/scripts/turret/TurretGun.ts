@@ -167,6 +167,8 @@ type Gun = {
   muzzles: Vec3[];
   /** Head-local bore for each muzzle. Same length as `muzzles` when every barrel fires on its own. */
   bores: Vec3[];
+  /** Muzzle face width. The flash is larger than this and sits in front, so it covers the mouth. */
+  mouth: number;
   restRot: Quat;
   restPos: Vec3;
   rawPos: Vec3;
@@ -493,6 +495,172 @@ function twinMuzzlePoints(
   return dx * dx + dy * dy + dz * dz > 0.49;
 }
 
+/**
+ * Two muzzle faces on a head that still carries both barrels, such as 10011.
+ * Keep the verts that face out of the bore tip, then split them on the gap between the tubes.
+ * Returns the wider face, in meters. Zero means the head is not a twin muzzle.
+ */
+function headTwinMuzzles(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  outA: Vec3,
+  outB: Vec3,
+  outDir: Vec3,
+): number {
+  if (!normals) return 0;
+  const n = (data.length / 3) | 0;
+  if (n < 16) return 0;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  let axis = 0;
+  if (max[1] - min[1] > max[axis] - min[axis]) axis = 1;
+  if (max[2] - min[2] > max[axis] - min[axis]) axis = 2;
+  const span = max[axis] - min[axis];
+  if (span < 0.4) return 0;
+  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+  const tip = sign > 0 ? max[axis] : min[axis];
+  const band = span * 0.08;
+  const cap: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = data[i * 3 + axis];
+    const onTip = sign > 0 ? v >= tip - band : v <= tip + band;
+    if (!onTip) continue;
+    const facing = normals[i * 3 + axis];
+    if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
+    cap.push(i);
+  }
+  if (cap.length < 16) return 0;
+  let bestGap = 0;
+  let splitAt = 0;
+  let order: number[] = [];
+  for (let side = 0; side < 3; side++) {
+    if (side === axis) continue;
+    const sorted = cap.slice().sort((i, j) => data[i * 3 + side] - data[j * 3 + side]);
+    let gap = 0;
+    let at = 1;
+    for (let k = 1; k < sorted.length; k++) {
+      const g = data[sorted[k] * 3 + side] - data[sorted[k - 1] * 3 + side];
+      if (g > gap) {
+        gap = g;
+        at = k;
+      }
+    }
+    if (gap <= bestGap) continue;
+    bestGap = gap;
+    splitAt = at;
+    order = sorted;
+  }
+  const rest = order.length - splitAt;
+  if (bestGap < 0.3 || splitAt < 8 || rest < 8) return 0;
+  if (splitAt < order.length * 0.25 || rest < order.length * 0.25) return 0;
+  averageRange(data, order, 0, splitAt, outA);
+  averageRange(data, order, splitAt, order.length, outB);
+  outDir.set(axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
+  const dx = outA.x - outB.x;
+  const dy = outA.y - outB.y;
+  const dz = outA.z - outB.z;
+  if (dx * dx + dy * dy + dz * dz <= 0.36) return 0;
+  const u = (axis + 1) % 3;
+  const v = (axis + 2) % 3;
+  let width = 0;
+  for (let pass = 0; pass < 2; pass++) {
+    const from = pass === 0 ? 0 : splitAt;
+    const to = pass === 0 ? splitAt : order.length;
+    let minU = Infinity;
+    let maxU = -Infinity;
+    let minV = Infinity;
+    let maxV = -Infinity;
+    for (let k = from; k < to; k++) {
+      const o = order[k] * 3;
+      const pu = data[o + u];
+      const pv = data[o + v];
+      if (pu < minU) minU = pu;
+      if (pu > maxU) maxU = pu;
+      if (pv < minV) minV = pv;
+      if (pv > maxV) maxV = pv;
+    }
+    width = Math.max(width, maxU - minU, maxV - minV);
+  }
+  return width;
+}
+
+/**
+ * One muzzle face on a head that still carries its barrel, such as 10010.
+ * Same bore-tip test as the twin mouths. Returns the face width, or zero.
+ */
+function headMuzzle(
+  data: ArrayLike<number>,
+  normals: ArrayLike<number> | null,
+  out: Vec3,
+  outDir: Vec3,
+): number {
+  if (!normals) return 0;
+  const n = (data.length / 3) | 0;
+  if (n < 12) return 0;
+  const min = [Infinity, Infinity, Infinity];
+  const max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) {
+    const o = i * 3;
+    for (let a = 0; a < 3; a++) {
+      const v = data[o + a];
+      if (v < min[a]) min[a] = v;
+      if (v > max[a]) max[a] = v;
+    }
+  }
+  let axis = 0;
+  if (max[1] - min[1] > max[axis] - min[axis]) axis = 1;
+  if (max[2] - min[2] > max[axis] - min[axis]) axis = 2;
+  const span = max[axis] - min[axis];
+  if (span < 0.4) return 0;
+  const sign = Math.abs(max[axis]) >= Math.abs(min[axis]) ? 1 : -1;
+  const tip = sign > 0 ? max[axis] : min[axis];
+  // Thinner than the twin-mouth band. A fat single muzzle still has barrel-side verts at 8%.
+  const band = span * 0.05;
+  const cap: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const v = data[i * 3 + axis];
+    const onTip = sign > 0 ? v >= tip - band : v <= tip + band;
+    if (!onTip) continue;
+    const facing = normals[i * 3 + axis];
+    if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
+    cap.push(i);
+  }
+  if (cap.length < 8) return 0;
+  const u = (axis + 1) % 3;
+  const v = (axis + 2) % 3;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+  for (let k = 0; k < cap.length; k++) {
+    const o = cap[k] * 3;
+    x += data[o];
+    y += data[o + 1];
+    z += data[o + 2];
+    const pu = data[o + u];
+    const pv = data[o + v];
+    if (pu < minU) minU = pu;
+    if (pu > maxU) maxU = pu;
+    if (pv < minV) minV = pv;
+    if (pv > maxV) maxV = pv;
+  }
+  const inv = 1 / cap.length;
+  out.set(x * inv, y * inv, z * inv);
+  outDir.set(axis === 0 ? sign : 0, axis === 1 ? sign : 0, axis === 2 ? sign : 0);
+  return Math.max(maxU - minU, maxV - minV);
+}
+
 function axisComp(axis: number): 'x' | 'y' | 'z' {
   return axis === 0 ? 'x' : axis === 1 ? 'y' : 'z';
 }
@@ -751,7 +919,7 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10010' || name === '10011') found.push(kids[i]);
     }
     return found;
   }
@@ -777,6 +945,7 @@ export class TurretGun extends Component {
       barrelZ: 0,
       muzzles: [],
       bores: [],
+      mouth: 0,
       restRot: new Quat(),
       restPos: new Vec3(),
       rawPos: new Vec3(),
@@ -917,7 +1086,67 @@ export class TurretGun extends Component {
     if (gun.socket) this._seatPivot(gun);
     if (gun.root.name === '10003') this._bindRadial(gun);
     else if (gun.root.name === '10004') this._bindGrid(gun);
+    else if (gun.root.name === '10011') this._bindHeadTwin(gun);
+    else if (gun.root.name === '10010') this._bindHeadMouth(gun);
     else this._bindTwin(gun);
+  }
+
+  /** 10011 keeps both barrels on the head. Each mouth fires its own bolt. */
+  private _bindHeadTwin(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const head = gun.head;
+    if (!head?.isValid) return;
+    const mesh = head.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    const width = data ? headTwinMuzzles(data, normals, _local, _side, _dir) : 0;
+    if (width <= 0) return;
+    gun.mouth = width;
+    const left = new Vec3(_local.x, _local.y, _local.z);
+    const right = new Vec3(_side.x, _side.y, _side.z);
+    const boreX = _dir.x;
+    const boreY = _dir.y;
+    const boreZ = _dir.z;
+    gun.muzzles.push(left, right);
+    gun.muzzle.set((left.x + right.x) * 0.5, (left.y + right.y) * 0.5, (left.z + right.z) * 0.5);
+    gun.forward.set(boreX, boreY, boreZ);
+  }
+
+  /** 10010 keeps its barrel on the head. The flash covers that one muzzle the same way as 10011. */
+  private _bindHeadMouth(gun: Gun): void {
+    gun.muzzles.length = 0;
+    const head = gun.head;
+    if (!head?.isValid) return;
+    const mesh = head.getComponent(MeshRenderer)?.mesh;
+    if (!mesh) return;
+    let data: ArrayLike<number> | null = null;
+    try {
+      data = mesh.readAttribute(0, gfx.AttributeName.ATTR_POSITION);
+    } catch {
+      data = null;
+    }
+    let normals: ArrayLike<number> | null = null;
+    try {
+      normals = mesh.readAttribute(0, gfx.AttributeName.ATTR_NORMAL);
+    } catch {
+      normals = null;
+    }
+    const width = data ? headMuzzle(data, normals, _local, _dir) : 0;
+    if (width <= 0) return;
+    gun.mouth = width;
+    gun.muzzle.set(_local.x, _local.y, _local.z);
+    gun.forward.set(_dir.x, _dir.y, _dir.z);
   }
 
   /** Twin barrels share one mesh. Each muzzle fires its own bullet along the bore. */
@@ -1198,6 +1427,10 @@ export class TurretGun extends Component {
       else _dir.normalize();
     }
     const nudge = this._height * 0.05;
+    // The muzzle cap is solid. Park the burst in front of it so the flash covers the mouth.
+    const flashSize = gun.mouth > 0 ? gun.mouth * 1.6 : bulletHeight() * 0.26;
+    const flashNudge = gun.mouth > 0 ? gun.mouth * 0.45 : nudge;
+    const bulletNudge = Math.max(nudge, flashNudge);
     for (let i = 0; i < mouths.length; i++) {
       if (split) {
         Vec3.transformQuat(_dir, gun.bores[i], head.worldRotation);
@@ -1205,10 +1438,14 @@ export class TurretGun extends Component {
         else _dir.normalize();
       }
       Vec3.transformMat4(_world, mouths[i], head.worldMatrix);
-      _world.x += _dir.x * nudge;
-      _world.y += _dir.y * nudge;
-      _world.z += _dir.z * nudge;
-      createLaserFlash(head, _world, bulletHeight() * 0.26, 0.12);
+      _world.x += _dir.x * flashNudge;
+      _world.y += _dir.y * flashNudge;
+      _world.z += _dir.z * flashNudge;
+      createLaserFlash(head, _world, flashSize, 0.12);
+      const rest = bulletNudge - flashNudge;
+      _world.x += _dir.x * rest;
+      _world.y += _dir.y * rest;
+      _world.z += _dir.z * rest;
       if (this._bullet) spawnBullet20000(this._bullet, scene, _world, _dir);
     }
   }
