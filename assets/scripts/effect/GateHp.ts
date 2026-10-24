@@ -1,4 +1,4 @@
-import { _decorator, Color, Component, Label, Node, Sprite, UITransform } from 'cc';
+import { _decorator, Color, Component, Node, Sprite, UITransform } from 'cc';
 
 const { ccclass } = _decorator;
 
@@ -20,7 +20,6 @@ export class GateHp extends Component {
   private _spark: Node | null = null;
   private _sparkSprite: Sprite | null = null;
   private _tint: Sprite | null = null;
-  private _label: Label | null = null;
   private _time = 0;
   private _step = 0;
   private _phase = 0;
@@ -36,7 +35,8 @@ export class GateHp extends Component {
     this._fill = this.node.getChildByName('Fill')?.getComponent(Sprite) ?? null;
     this._spark = this.node.getChildByName('Spark') ?? null;
     this._sparkSprite = this._spark?.getComponent(Sprite) ?? null;
-    this._label = this.node.getChildByName('Pct')?.getComponent(Label) ?? null;
+    const pct = this.node.getChildByName('Pct');
+    if (pct) pct.active = false;
     if (this._fill) this._fill.color = Color.WHITE;
     this._ensureTint();
     this._pass(this.node);
@@ -75,11 +75,6 @@ export class GateHp extends Component {
     if (fill?.isValid && ui) {
       ui.setContentSize(this._span * shown / this._fillScale, FILL_H);
       fill.node.active = shown > 0.004;
-    }
-    const label = this._label;
-    if (label?.isValid) {
-      const text = `${Math.round(shown * 100)}%`;
-      if (label.string !== text) label.string = text;
     }
     const spark = this._spark;
     if (spark?.isValid) {

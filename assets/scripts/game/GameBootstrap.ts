@@ -45,16 +45,16 @@ const SHAFT_TEX = 'c1d4e8a0-7b32-4f91-9c55-6e2a1b0d4f10@6c48a';
 const WALL_W = 1693;
 const WALL_H = 214;
 
-/** Centers of the eight plant marks, in world meters. First is highest on screen. */
+/** Grass shoulders beside the dirt road, in world meters. First is highest on screen. */
 const SLOT_SPOTS: ReadonlyArray<readonly [number, number]> = [
-  [29.435, 16.44],
-  [10.752, 7.701],
-  [17.862, -12.534],
-  [-6.196, 3.79],
-  [-0.505, -10.573],
-  [-25.432, -5.108],
-  [-6.073, -33.287],
-  [-31.968, -26.844],
+  [26.382, 8.230],
+  [12.050, 7.266],
+  [16.801, -12.600],
+  [-10.972, 1.696],
+  [2.220, -11.585],
+  [-25.825, -6.611],
+  [-6.045, -32.030],
+  [-30.949, -29.685],
 ];
 
 function isSlot(node: Node): boolean {

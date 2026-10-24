@@ -63,6 +63,12 @@ const STEEL_TEX: Record<string, string> = {
 const _steel = new Map<string, Texture2D>();
 const _steelWait = new Map<string, Node[]>();
 
+/** Metal digits for the machine guns. Laser and the other bolts keep the plain number. */
+function gunInk(name: string): 'plain' | 'gun' {
+  if (name === '10001' || name === '10010' || name === '10011' || name === '10012') return 'gun';
+  return 'plain';
+}
+
 function keepsOwnSkin(root: Node, mr: MeshRenderer): boolean {
   if (mr.node.name !== 'TurretBase') return false;
   return root.name === '10002' || root.name === '10000';
@@ -1831,7 +1837,7 @@ export class TurretGun extends Component {
       _world.y += _dir.y * rest;
       _world.z += _dir.z * rest;
       if (gun.flame || !this._bullet) continue;
-      spawnBullet20000(this._bullet, scene, _world, _dir);
+      spawnBullet20000(this._bullet, scene, _world, _dir, gunInk(gun.root.name));
     }
   }
 

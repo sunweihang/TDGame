@@ -2,7 +2,7 @@ import { _decorator, AnimationClip, Component, Node, SkeletalAnimation, Vec3 } f
 import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
 import { playBloodSpray } from '../effect/BloodSpray.ts';
 import { dropKillLoot } from '../effect/KillLoot.ts';
-import { showDmgFont } from '../effect/DmgFont.ts';
+import { showDmgFont, type Ink } from '../effect/DmgFont.ts';
 import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar } from '../effect/HpBar.ts';
 import { hurtGate, pastWall } from '../effect/WallFlash.ts';
 import { easeSkirt, skirtPlan } from './MonsterSkirt.ts';
@@ -12,7 +12,7 @@ const { ccclass } = _decorator;
 const SPEED = 3.4;
 const HIT_R = 1.86;
 const FOOT_Y = 0.02;
-/** Each hit rolls this. A crit deals twice the hit and pops the larger orange-red number. */
+/** Each hit rolls this. A crit deals twice the hit and pops the larger number. */
 const CRIT_CHANCE = 0.2;
 const CRIT_MUL = 2;
 /**
@@ -183,12 +183,12 @@ export class MonsterUnit extends Component {
     if (!this.threat) this._stayFlat = true;
   }
 
-  damage(amount: number, rollCrit = true): void {
+  damage(amount: number, rollCrit = true, ink: Ink = 'plain'): void {
     if (!this.threat) return;
     const crit = rollCrit && Math.random() < CRIT_CHANCE;
     const dealt = crit ? amount * CRIT_MUL : amount;
     this.hp -= dealt;
-    showDmgFont(this.node, dealt, crit ? 'crit' : 'hit');
+    showDmgFont(this.node, dealt, crit ? 'crit' : 'hit', ink);
     const scene = this.node.scene;
     if (scene) {
       const p = this.node.worldPosition;

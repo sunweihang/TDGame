@@ -38,9 +38,46 @@ const CHIP_H = 68;
 /** Movement below this, in UI pixels, still counts as a tap. */
 const DRAG_SLOP = 16;
 const PANEL_W = 640;
-const PANEL_H = 560;
+const PANEL_H = 1004;
 const ROW_W = 520;
 const ROW_H = 112;
+const PLANT_W = 252;
+const PLANT_H = 76;
+const TITLE_Y = 434;
+const WALK_Y = 326;
+const SPAWN_Y = 198;
+const PLANT_LABEL_Y = 96;
+const PLANT_TOP = 24;
+const PLANT_STEP = 88;
+const CLOSE_Y = -428;
+
+type PlantKind =
+  | '10000'
+  | '10001'
+  | '10002'
+  | '10004'
+  | '10005'
+  | '10006'
+  | '10007'
+  | '10010'
+  | '10011'
+  | '10012';
+
+/** Ids the empty pads can roll. Defaults are the level-3 gun and the three flamethrowers. */
+const PLANT_KINDS: { id: PlantKind; name: string }[] = [
+  { id: '10010', name: '10010 枪1' },
+  { id: '10011', name: '10011 枪2' },
+  { id: '10012', name: '10012 枪3' },
+  { id: '10005', name: '10005 火1' },
+  { id: '10006', name: '10006 火2' },
+  { id: '10007', name: '10007 火3' },
+  { id: '10000', name: '10000 激光' },
+  { id: '10001', name: '10001 旧枪' },
+  { id: '10002', name: '10002 双管' },
+  { id: '10004', name: '10004 九管' },
+];
+
+const _plantOn = new Set<PlantKind>(['10012', '10005', '10006', '10007']);
 
 const _ink = new Color(48, 230, 96, 130);
 const _inkOn = new Color(170, 255, 190, 255);
@@ -68,9 +105,19 @@ export function walkGmHeld(): boolean {
   return _finger || _linger || _open;
 }
 
+/** Checked turret ids, in list order. An empty pad rolls one of these once it has loaded. */
+export function gmPlantPool(): PlantKind[] {
+  const pool: PlantKind[] = [];
+  for (let i = 0; i < PLANT_KINDS.length; i++) {
+    const id = PLANT_KINDS[i].id;
+    if (_plantOn.has(id)) pool.push(id);
+  }
+  return pool;
+}
+
 /**
  * Corner GM button. It stays hidden until G, which shows and hides it.
- * Drag the button to place it. A tap opens the panel; 走区 and 刷怪 switch inside.
+ * Drag the button to place it. A tap opens the panel; 走区, 刷怪, and 种塔 switch inside.
  * The carpet moves when the hull turns, because the camera frame and the base
  * pads are tested with the hull rectangle.
  */
@@ -96,6 +143,7 @@ export class TankWalkGM extends Component {
   private _spawnLab: Label | null = null;
   private _walkBg: Node | null = null;
   private _spawnBg: Node | null = null;
+  private readonly _plants: { id: PlantKind; lab: Label; bg: Node }[] = [];
   private _shadeW = 0;
   private _shadeH = 0;
   private _wait = 0;
@@ -276,6 +324,13 @@ export class TankWalkGM extends Component {
       const on = monsterSpawning();
       paintPlate(this._spawnBg, ROW_W, ROW_H, 18, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge);
     }
+    for (let i = 0; i < this._plants.length; i++) {
+      const row = this._plants[i];
+      const on = _plantOn.has(row.id);
+      row.lab.string = on ? '开' : '关';
+      row.lab.color = on ? _inkOn : _inkOff;
+      paintPlate(row.bg, PLANT_W, PLANT_H, 14, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge);
+    }
   }
 
   private _mount(canvas: Node): void {
@@ -332,17 +387,48 @@ export class TankWalkGM extends Component {
     swallow(card);
     plateNode(card, layer, 'bg', PANEL_W, PANEL_H, 28, _cardInk, _cardEdge);
     const title = textNode(card, layer, 'title', 'GM', 400, 64, 44, 52);
-    title.node.setPosition(0, 198, 0);
+    title.node.setPosition(0, TITLE_Y, 0);
     title.color = _inkOn;
 
-    const walk = this._row(card, layer, 'gm-walk', '走区', 62, this._toggleWalk);
+    const walk = this._row(card, layer, 'gm-walk', '走区', WALK_Y, this._toggleWalk);
     this._walkLab = walk.lab;
     this._walkBg = walk.bg;
-    const spawn = this._row(card, layer, 'gm-spawn', '刷怪', -62, this._toggleSpawn);
+    const spawn = this._row(card, layer, 'gm-spawn', '刷怪', SPAWN_Y, this._toggleSpawn);
     this._spawnLab = spawn.lab;
     this._spawnBg = spawn.bg;
+    const plantTitle = textNode(card, layer, 'plant-title', '种塔', 400, 44, 32, 40);
+    plantTitle.node.setPosition(0, PLANT_LABEL_Y, 0);
+    plantTitle.color = _inkOn;
+    const colX = [-134, 134];
+    for (let i = 0; i < PLANT_KINDS.length; i++) {
+      const spec = PLANT_KINDS[i];
+      const chip = this._plantChip(card, layer, spec.id, spec.name, colX[i % 2], PLANT_TOP - ((i / 2) | 0) * PLANT_STEP);
+      this._plants.push(chip);
+    }
     this._closeRow(card, layer);
     this._paint();
+  }
+
+  private _togglePlant(id: PlantKind): void {
+    if (_plantOn.has(id)) _plantOn.delete(id);
+    else _plantOn.add(id);
+    this._paint();
+  }
+
+  private _plantChip(card: Node, layer: number, id: PlantKind, title: string, x: number, y: number): { id: PlantKind; lab: Label; bg: Node } {
+    const node = new Node(`gm-plant-${id}`);
+    node.layer = layer;
+    card.addChild(node);
+    node.addComponent(UITransform).setContentSize(PLANT_W, PLANT_H);
+    node.setPosition(x, y, 0);
+    const bg = plateNode(node, layer, 'bg', PLANT_W, PLANT_H, 14, _rowInk, _rowEdge);
+    const caption = textNode(node, layer, 'name', title, 160, PLANT_H, 24, 30);
+    caption.node.setPosition(-34, 0, 0);
+    caption.color = _inkOff;
+    const lab = textNode(node, layer, 'state', '', 56, PLANT_H, 24, 30);
+    lab.node.setPosition(92, 0, 0);
+    bindTap(node, () => this._togglePlant(id));
+    return { id, lab, bg };
   }
 
   private _row(
@@ -373,7 +459,7 @@ export class TankWalkGM extends Component {
     node.layer = layer;
     card.addChild(node);
     node.addComponent(UITransform).setContentSize(220, 76);
-    node.setPosition(0, -198, 0);
+    node.setPosition(0, CLOSE_Y, 0);
     plateNode(node, layer, 'bg', 220, 76, 16, _closeInk, _closeEdge);
     const lab = textNode(node, layer, 'txt', '关闭', 220, 76, 32, 40);
     lab.color = _inkOff;

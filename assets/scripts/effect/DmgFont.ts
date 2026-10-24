@@ -7,9 +7,9 @@ import { Camera, Color, Label, Layers, Node, Sprite, SpriteFrame, UIOpacity, UIT
  * sitting on each other. Lanes also shift sideways.
  * The screen keeps a short list. A hit past that list fades the oldest glyph.
  * A glyph pops on the crown, then drifts up slowly and stays readable.
- * Normal hits are warm white. Crits are larger orange-red digits.
- * The burst sits up-left of the digits, the way the old badge did, so the
- * number does not cover it.
+ * Plain hits are warm white. A machine-gun hit is orange-yellow. A flame hit is red.
+ * Those hits stay on the system font. Only a crit swaps in the weapon's digit sheet.
+ * The sheet is the face of the number. Crits do not draw a badge behind it.
  * Offsets are the 720 canvas, then ×1.5 onto this 1080 canvas.
  * This camera shows about 80 meters top to bottom, so the rise stays a
  * short lift off the head.
@@ -23,6 +23,11 @@ const MAX_PER_FRAME = 18;
 const MAX_PER_UNIT = 4;
 const FONT_HIT = 20;
 const FONT_CRIT = 30;
+/** Crit digits on this 1080 canvas, before the pop. */
+const ART_CRIT = 86;
+/** 720-canvas step that clears one weapon digit after the canvas scale. */
+const ART_STACK = 54;
+const ART_CELLS = 6;
 const DUR_HIT = 1.4;
 const DUR_CRIT = 1.75;
 const DUR_PLAYER = 1.4;
@@ -36,24 +41,24 @@ const LANE_PEEL = 10;
 const EVICT_FADE = 0.4;
 /** How fast a glyph slides from the crown into its lane. */
 const SLOT_CHASE = 4.5;
-const CRIT_ICON = 'ui/stat/Icon_CritBurst';
-/** Burst center relative to the digits, in the 720 canvas. Up-left, so the star stays visible. */
-const CRIT_ICON_X = -22.8;
-const CRIT_ICON_Y = 17.4;
-const CRIT_ICON_PX = 40 * 1.2475;
 /** Extra height above the crown where a pop starts, in the 720 canvas. */
 const HEAD_LIFT = 28;
 const INK_HIT = new Color(255, 248, 214, 255);
 const INK_CRIT = new Color(255, 64, 22, 255);
 const INK_PLAYER = new Color(248, 95, 95, 255);
+/** Machine-gun body color. Orange-yellow. */
+const INK_GUN = new Color(255, 186, 42, 255);
+/** Flamethrower body color. Red. */
+const INK_FLAME = new Color(255, 42, 36, 255);
 const EDGE = new Color(0, 0, 0, 255);
 
 export type Kind = 'hit' | 'crit' | 'player';
+/** Which weapon landed the hit. The bitmap sheet is only for a crit. */
+export type Ink = 'plain' | 'gun' | 'flame';
 
 type Floater = {
   node: Node;
   lab: Label;
-  icon: Node;
   fade: UIOpacity;
   life: number;
   /** Seconds this glyph stays up. Crits outlast normal hits. */
@@ -69,6 +74,9 @@ type Floater = {
   target: Node | null;
   amount: number;
   kind: Kind;
+  ink: Ink;
+  digits: Node;
+  cells: Sprite[];
 };
 
 type Pending = {
@@ -76,7 +84,10 @@ type Pending = {
   amount: number;
   crit: boolean;
   player: boolean;
+  ink: Ink;
 };
+
+type ArtInk = 'gun' | 'flame';
 
 const _world = new Vec3();
 const _ui = new Vec3();
@@ -87,7 +98,11 @@ const _queue: Pending[] = [];
 
 let _root: Node | null = null;
 let _canvas: Node | null = null;
-let _critIcon: SpriteFrame | null = null;
+const _digits: Record<ArtInk, Array<SpriteFrame | null>> = {
+  gun: [null, null, null, null, null, null, null, null, null, null],
+  flame: [null, null, null, null, null, null, null, null, null, null],
+};
+let _digitLoading = false;
 
 export function mountDmgFont(canvas: Node): void {
   if (_root?.isValid) _root.destroy();
@@ -115,7 +130,7 @@ export function mountDmgFont(canvas: Node): void {
   loadArt();
 }
 
-export function showDmgFont(target: Node, amount: number, kind: Kind): void {
+export function showDmgFont(target: Node, amount: number, kind: Kind, ink: Ink = 'plain'): void {
   if (!target?.isValid || amount <= 0) return;
   if (_queue.length >= MAX_QUEUE) _queue.shift();
   _queue.push({
@@ -123,6 +138,7 @@ export function showDmgFont(target: Node, amount: number, kind: Kind): void {
     amount,
     crit: kind === 'crit',
     player: kind === 'player',
+    ink,
   });
 }
 
@@ -175,17 +191,65 @@ function durationOf(kind: Kind): number {
 
 function paint(floater: Floater): void {
   const kind = floater.kind;
+  const art = kind === 'crit' && floater.ink !== 'plain' && layoutArt(floater);
+  floater.digits.active = art;
+  floater.lab.node.active = !art;
+  if (art) return;
   const size = Math.round((kind === 'crit' ? FONT_CRIT : FONT_HIT) * UI);
   floater.lab.string = formatCount(floater.amount);
   floater.lab.fontSize = size;
   floater.lab.lineHeight = size + 2;
-  floater.lab.color = kind === 'crit' ? INK_CRIT : kind === 'player' ? INK_PLAYER : INK_HIT;
+  floater.lab.color = labelInk(floater);
+  floater.lab.outlineColor = EDGE;
   floater.lab.outlineWidth = kind === 'crit' ? 4 : 3;
-  floater.icon.active = kind === 'crit';
-  if (kind !== 'crit') return;
-  const iconPx = CRIT_ICON_PX * UI;
-  floater.icon.getComponent(UITransform)?.setContentSize(iconPx, iconPx);
-  floater.icon.setPosition(CRIT_ICON_X * UI, CRIT_ICON_Y * UI, 0);
+}
+
+function labelInk(floater: Floater): Color {
+  if (floater.ink === 'gun') return INK_GUN;
+  if (floater.ink === 'flame') return INK_FLAME;
+  if (floater.kind === 'crit') return INK_CRIT;
+  if (floater.kind === 'player') return INK_PLAYER;
+  return INK_HIT;
+}
+
+/** Crits draw the weapon sheet. One bitmap digit per character. */
+function layoutArt(floater: Floater): boolean {
+  if (floater.ink !== 'gun' && floater.ink !== 'flame') return false;
+  const frames = _digits[floater.ink];
+  const text = String(Math.max(0, Math.floor(floater.amount)));
+  if (!text.length || text.length > floater.cells.length) return false;
+  const h = ART_CRIT;
+  const gap = -Math.round(h * 0.04);
+  const widths: number[] = [];
+  const used: SpriteFrame[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i) - 48;
+    const frame = code >= 0 && code <= 9 ? frames[code] : null;
+    if (!frame) return false;
+    const size = frame.originalSize;
+    const aspect = size.height > 0 ? size.width / size.height : 0.62;
+    widths.push(h * aspect);
+    used.push(frame);
+  }
+  let total = 0;
+  for (let i = 0; i < widths.length; i++) total += widths[i];
+  if (widths.length > 1) total += gap * (widths.length - 1);
+  let x = -total * 0.5;
+  const cells = floater.cells;
+  for (let i = 0; i < cells.length; i++) {
+    const spr = cells[i];
+    const node = spr.node;
+    if (i >= used.length) {
+      node.active = false;
+      continue;
+    }
+    node.active = true;
+    spr.spriteFrame = used[i];
+    node.getComponent(UITransform)?.setContentSize(widths[i], h);
+    node.setPosition(x + widths[i] * 0.5, 0, 0);
+    x += widths[i] + gap;
+  }
+  return true;
 }
 
 /**
@@ -194,14 +258,20 @@ function paint(floater: Floater): void {
  */
 function seat(target: Node, floater: Floater): void {
   let n = 0;
+  const step = laneStep(floater);
   for (let i = 0; i < _live.length; i++) {
     const other = _live[i];
     if (other.target !== target || other.evict >= 0) continue;
-    other.layY += STACK_Y;
+    other.layY += Math.max(laneStep(other), step);
     n += 1;
   }
   floater.layX = LANE_X[n % LANE_X.length];
   floater.layY = floater.kind === 'crit' ? CRIT_LIFT : 0;
+}
+
+function laneStep(floater: Floater): number {
+  if (floater.kind === 'crit' && floater.ink !== 'plain') return ART_STACK;
+  return STACK_Y;
 }
 
 function chaseSlot(floater: Floater, dt: number): void {
@@ -253,7 +323,7 @@ function beginFade(floater: Floater): void {
   if (floater.evict >= 0) return;
   floater.evict = EVICT_FADE;
   floater.layX += floater.layX >= 0 ? LANE_PEEL : -LANE_PEEL;
-  floater.layY += STACK_Y;
+  floater.layY += laneStep(floater);
 }
 
 function spawn(job: Pending): void {
@@ -266,6 +336,7 @@ function spawn(job: Pending): void {
   floater.evict = -1;
   floater.dur = durationOf(kind);
   floater.kind = kind;
+  floater.ink = job.ink;
   floater.amount = job.amount;
   floater.target = job.node;
   seat(job.node, floater);
@@ -290,18 +361,6 @@ function rent(): Floater {
   node.addComponent(UITransform).setContentSize(220, 72);
   const fade = node.addComponent(UIOpacity);
 
-  const icon = new Node('icon');
-  icon.layer = Layers.Enum.UI_2D;
-  node.addChild(icon);
-  const iconPx = CRIT_ICON_PX * UI;
-  icon.addComponent(UITransform).setContentSize(iconPx, iconPx);
-  icon.setPosition(CRIT_ICON_X * UI, CRIT_ICON_Y * UI, 0);
-  const spr = icon.addComponent(Sprite);
-  spr.sizeMode = Sprite.SizeMode.CUSTOM;
-  if (_critIcon) spr.spriteFrame = _critIcon;
-  icon.active = false;
-  passThrough(icon);
-
   const num = new Node('num');
   num.layer = Layers.Enum.UI_2D;
   node.addChild(num);
@@ -320,10 +379,28 @@ function rent(): Floater {
   lab.verticalAlign = Label.VerticalAlign.CENTER;
   lab.overflow = Label.Overflow.NONE;
   passThrough(num);
+
+  const digits = new Node('digits');
+  digits.layer = Layers.Enum.UI_2D;
+  node.addChild(digits);
+  digits.addComponent(UITransform).setContentSize(220, ART_CRIT);
+  digits.active = false;
+  passThrough(digits);
+  const cells: Sprite[] = [];
+  for (let i = 0; i < ART_CELLS; i++) {
+    const cell = new Node(`d${i}`);
+    cell.layer = Layers.Enum.UI_2D;
+    digits.addChild(cell);
+    cell.addComponent(UITransform);
+    const spr = cell.addComponent(Sprite);
+    spr.sizeMode = Sprite.SizeMode.CUSTOM;
+    cell.active = false;
+    passThrough(cell);
+    cells.push(spr);
+  }
   return {
     node,
     lab,
-    icon,
     fade,
     life: 0,
     dur: DUR_HIT,
@@ -336,31 +413,54 @@ function rent(): Floater {
     target: null,
     amount: 0,
     kind: 'hit',
+    ink: 'plain',
+    digits,
+    cells,
   };
 }
 
-function loadArt(attempt = 0): void {
-  if (_critIcon) {
-    paintIcons();
+function loadArt(): void {
+  loadDigits(0);
+}
+
+function loadDigits(attempt: number): void {
+  if (_digitLoading) return;
+  const missing: Array<{ ink: ArtInk; d: number }> = [];
+  const inks: ArtInk[] = ['gun', 'flame'];
+  for (let s = 0; s < inks.length; s++) {
+    const ink = inks[s];
+    for (let d = 0; d < 10; d++) {
+      if (!_digits[ink][d]) missing.push({ ink, d });
+    }
+  }
+  if (!missing.length) {
+    repaintArt();
     return;
   }
-  resources.load(`${CRIT_ICON}/spriteFrame`, SpriteFrame, (err, frame) => {
-    if (err || !frame) {
-      if (attempt < 12) setTimeout(() => loadArt(attempt + 1), 400);
-      return;
-    }
-    _critIcon = frame;
-    paintIcons();
-  });
+  _digitLoading = true;
+  let left = missing.length;
+  let failed = false;
+  for (let i = 0; i < missing.length; i++) {
+    const item = missing[i];
+    resources.load(`ui/dmg/${item.ink}/${item.d}/spriteFrame`, SpriteFrame, (err, frame) => {
+      if (!err && frame) _digits[item.ink][item.d] = frame;
+      else failed = true;
+      left -= 1;
+      if (left > 0) return;
+      _digitLoading = false;
+      if (failed && attempt < 12) {
+        setTimeout(() => loadDigits(attempt + 1), 400);
+        return;
+      }
+      repaintArt();
+    });
+  }
 }
 
-function paintIcons(): void {
-  const apply = (floater: Floater): void => {
-    const spr = floater.icon.getComponent(Sprite);
-    if (spr && _critIcon) spr.spriteFrame = _critIcon;
-  };
-  for (let i = 0; i < _live.length; i++) apply(_live[i]);
-  for (let i = 0; i < _pool.length; i++) apply(_pool[i]);
+function repaintArt(): void {
+  for (let i = 0; i < _live.length; i++) {
+    if (_live[i].ink !== 'plain') paint(_live[i]);
+  }
 }
 
 /** Combat text sits on the canvas but must not eat taps on the plant bar. */

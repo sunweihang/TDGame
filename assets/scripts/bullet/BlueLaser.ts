@@ -287,13 +287,16 @@ export class BlueLaserBolt extends Component {
   private _life = 0.55;
   private _age = 0;
   private _height = 1;
+  /** Combat-text sheet for the hit this bolt lands. */
+  private _ink: 'plain' | 'gun' | 'flame' = 'plain';
 
-  launch(dir: Vec3, speed: number, life: number): void {
+  launch(dir: Vec3, speed: number, life: number, ink: 'plain' | 'gun' | 'flame' = 'plain'): void {
     this._dir.set(dir);
     if (this._dir.lengthSqr() < 1e-8) this._dir.set(0, 0, -1);
     else this._dir.normalize();
     this._speed = speed;
     this._life = life;
+    this._ink = ink;
     this._height = BULLET_HEIGHT;
     this._ensureVisual();
     Quat.rotationTo(_quat, _forward, this._dir);
@@ -342,7 +345,7 @@ export class BlueLaserBolt extends Component {
       const dz = p.z - m.z;
       const reach = unit.hitRadius;
       if (dx * dx + dz * dz > reach * reach) continue;
-      unit.damage(14);
+      unit.damage(14, true, this._ink);
       this.node.destroy();
       return true;
     }
@@ -561,12 +564,18 @@ export function createLaserFlash(parent: Node, worldPos: Vec3, size: number, lif
 }
 
 /** Prefab 20000. Nose sits on `origin` and flies along `dir`. Size is fixed. */
-export function spawnBullet20000(prefab: Prefab, parent: Node, origin: Vec3, dir: Vec3): Node {
+export function spawnBullet20000(
+  prefab: Prefab,
+  parent: Node,
+  origin: Vec3,
+  dir: Vec3,
+  ink: 'plain' | 'gun' | 'flame' = 'plain',
+): Node {
   const root = instantiate(prefab);
   root.name = '20000';
   parent.addChild(root);
   root.setWorldPosition(origin);
   const height = BULLET_HEIGHT;
-  root.getComponent(BlueLaserBolt)?.launch(dir, height * 16, 0.62);
+  root.getComponent(BlueLaserBolt)?.launch(dir, height * 16, 0.62, ink);
   return root;
 }

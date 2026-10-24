@@ -369,7 +369,7 @@ export class FlameJet extends Component {
     for (let i = 0; i < units.length; i++) {
       const unit = units[i];
       if (!this._inside(unit)) continue;
-      unit.damage(BURN);
+      unit.damage(BURN, true, 'flame');
     }
   }
 
