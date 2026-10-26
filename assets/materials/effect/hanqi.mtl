@@ -1,0 +1,67 @@
+{
+  "__type__": "cc.Material",
+  "_name": "",
+  "_objFlags": 0,
+  "__editorExtras__": {},
+  "_native": "",
+  "_effectAsset": {
+    "__uuid__": "7f78400d-94a6-45a3-a362-ca4eed3138e0",
+    "__expectedType__": "cc.EffectAsset"
+  },
+  "_techIdx": 1,
+  "_defines": [
+    {
+      "USE_DISTORT": true,
+      "USE_DISSOLVE": true
+    },
+    {}
+  ],
+  "_states": [
+    {
+      "priority": 137,
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    },
+    {
+      "rasterizerState": {},
+      "depthStencilState": {},
+      "blendState": {
+        "targets": [
+          {}
+        ]
+      }
+    }
+  ],
+  "_props": [
+    {
+      "mainTexture": {
+        "__uuid__": "5bb7367a-24d9-43a6-bd83-61bf7888d933@6c48a",
+        "__expectedType__": "cc.Texture2D"
+      },
+      "distortTexture": {
+        "__uuid__": "e71d858b-dd48-4ad0-a666-dc19ec0370d6@6c48a",
+        "__expectedType__": "cc.Texture2D"
+      },
+      "distortStreagth": 0.2,
+      "distort_u_speed": 0.2,
+      "distort_v_speed": 0.2,
+      "distortMaskTex": {
+        "__uuid__": "e71d858b-dd48-4ad0-a666-dc19ec0370d6@6c48a",
+        "__expectedType__": "cc.Texture2D"
+      },
+      "distortMask_u_speed": 0.3,
+      "dissolveTex": {
+        "__uuid__": "e71d858b-dd48-4ad0-a666-dc19ec0370d6@6c48a",
+        "__expectedType__": "cc.Texture2D"
+      },
+      "dissolve_u_speed": 0.1,
+      "dissolve_v_speed": -0.1
+    },
+    {}
+  ]
+}

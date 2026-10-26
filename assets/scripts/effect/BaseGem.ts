@@ -12,7 +12,9 @@ import {
   Vec3,
   utils,
 } from 'cc';
-import { effectCenter, slotPad } from './BaseAura.ts';
+import { addBaseAura, baseEffectsOn, effectCenter, setBaseEffectsFlag, slotPad } from './BaseAura.ts';
+
+export { baseEffectsOn };
 
 const { ccclass } = _decorator;
 
@@ -103,6 +105,22 @@ function bindArt(mr: MeshRenderer): void {
   });
 }
 
+/** Show or hide the crystal and the column on every empty pad. */
+export function setBaseEffects(scene: Node, on: boolean): void {
+  setBaseEffectsFlag(on);
+  const kids = scene.children;
+  for (let i = 0; i < kids.length; i++) {
+    const node = kids[i];
+    if (!node.isValid) continue;
+    if (node.name !== 'slot-face' && node.name !== 'slot') continue;
+    const gem = node.getChildByName('BaseGem');
+    const aura = node.getChildByName('BaseAura');
+    if (gem?.isValid) gem.active = on;
+    if (aura?.isValid) aura.active = on;
+    if (on) addBaseGem(node);
+  }
+}
+
 /** The picture leaves with the empty pad, and a late load will not bring it back. */
 export function sealBaseGem(slot: Node): void {
   _sealed.add(slot);
@@ -113,7 +131,9 @@ export function sealBaseGem(slot: Node): void {
 
 /** The reference picture, standing on the stone and facing the camera. */
 export function addBaseGem(slot: Node): void {
-  if (!slot.isValid || _sealed.has(slot) || slot.getChildByName('BaseGem')) return;
+  if (!baseEffectsOn() || !slot.isValid || _sealed.has(slot)) return;
+  addBaseAura(slot);
+  if (slot.getChildByName('BaseGem')) return;
   const pad = slotPad(slot);
   const spot = effectCenter(slot);
   if (!pad || !spot || pad.radius < 0.2) return;

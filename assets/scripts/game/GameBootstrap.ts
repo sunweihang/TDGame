@@ -24,7 +24,9 @@ import { holdDomSplash, isSplashClicked, releaseDomSplash, signalLoadReady, spla
 import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { mountKillLoot, tickKillLoot } from '../effect/KillLoot.ts';
+import { mountAbilityPick } from './AbilityPick.ts';
 import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
+import { warmupIceChunk } from '../bullet/IceChunk.ts';
 import { warmupFlame } from '../effect/FlameJet.ts';
 import { warmupHpBar } from '../effect/HpBar.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
@@ -210,9 +212,11 @@ export class GameBootstrap extends Component {
       if (canvas) {
         mountDmgFont(canvas);
         mountKillLoot(canvas);
+        mountAbilityPick(canvas);
       }
       warmupHpBar();
       warmupMuzzleFlash();
+      warmupIceChunk();
       warmupFlame();
       this._cam = scene?.getChildByName('Main Camera')?.getComponent(Camera) ?? null;
       this._useOrtho();

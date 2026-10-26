@@ -378,6 +378,34 @@ function createModule<T>(name: string): T | null {
 /** Loads the muzzle-flash sprite once. Call before the first shot so the burst is not late. */
 export function warmupMuzzleFlash(): void {
   ensureFlashMat(() => undefined);
+  ensureBurstMat(() => undefined);
+}
+
+/**
+ * Camera-facing muzzle pop. `violet` is the railgun, `fire` is the flamethrower.
+ * `size` is the sprite width in meters. It stays in the world, the same way the laser flash does.
+ */
+export function createMuzzleBurst(parent: Node, worldPos: Vec3, size: number, tint: BurstTint, life = 0.4): Node {
+  const host = parent.scene ?? parent;
+  const node = new Node(tint === 'fire' ? 'FireFlash' : 'VioletFlash');
+  node.layer = parent.layer;
+  host.addChild(node);
+  node.setWorldPosition(worldPos);
+  const flash = node.addComponent(LaserFlash);
+  flash.life = life + 0.08;
+  const core = addBurst(node, 'Core', 5, life, size * 0.72, size, 0, tint);
+  const hot = addBurst(node, 'Hot', 3, life * 0.62, size * 0.28, size * 0.5, 0, tint);
+  ensureBurstMat((mat) => {
+    if (!node.isValid) return;
+    if (!mat) {
+      node.destroy();
+      return;
+    }
+    paintFlash(core, mat);
+    paintFlash(hot, mat);
+    flash.arm();
+  });
+  return node;
 }
 
 function ensureFlashMat(done: (mat: Material | null) => void): void {
@@ -477,6 +505,85 @@ function fadeFlash(ps: ParticleSystem): void {
   fade.enable = true;
 }
 
+export type BurstTint = 'violet' | 'fire';
+
+let _burstMat: Material | null = null;
+let _burstLoading = false;
+const _burstWait: Array<(mat: Material | null) => void> = [];
+let _burstDisc: Texture2D | null = null;
+
+/** Soft white disc. The burst color comes from the particle gradient, not a yellow star. */
+function burstDisc(): Texture2D {
+  if (_burstDisc) return _burstDisc;
+  const n = 64;
+  const data = new Uint8Array(n * n * 4);
+  const c = (n - 1) * 0.5;
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const dx = (x - c) / c;
+      const dy = (y - c) / c;
+      const r = Math.sqrt(dx * dx + dy * dy);
+      const a = r < 1 ? Math.pow(1 - r, 1.45) * 255 : 0;
+      const i = (y * n + x) * 4;
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = a;
+    }
+  }
+  const tex = new Texture2D();
+  tex.reset({ width: n, height: n, format: Texture2D.PixelFormat.RGBA8888 });
+  tex.setFilters(Texture2D.Filter.LINEAR, Texture2D.Filter.LINEAR);
+  tex.setWrapMode(Texture2D.WrapMode.CLAMP_TO_EDGE, Texture2D.WrapMode.CLAMP_TO_EDGE);
+  tex.uploadData(data);
+  _burstDisc = tex;
+  return tex;
+}
+
+function ensureBurstMat(done: (mat: Material | null) => void): void {
+  if (_burstMat) {
+    done(_burstMat);
+    return;
+  }
+  _burstWait.push(done);
+  if (_burstLoading) return;
+  _burstLoading = true;
+  assetManager.loadAny({ uuid: PARTICLE_EFFECT }, (effectErr, effectAsset) => {
+    _burstLoading = false;
+    const effect = asFlashEffect(effectAsset);
+    const wait = _burstWait.splice(0);
+    if (effectErr || !effect) {
+      console.error('[MuzzleBurst] 开火着色器加载失败', effectErr);
+      for (let i = 0; i < wait.length; i++) wait[i](null);
+      return;
+    }
+    _burstMat = flashMat(effect, burstDisc());
+    _burstMat.setProperty('ColorEnhance', 1.8);
+    for (let i = 0; i < wait.length; i++) wait[i](_burstMat);
+  });
+}
+
+function fadeBurst(ps: ParticleSystem, tint: BurstTint): void {
+  const fade = createModule<FlashFade>('cc.ColorOvertimeModule');
+  if (!fade || !ps.processor) return;
+  (ps as ParticleSystem & { colorOverLifetimeModule: FlashFade }).colorOverLifetimeModule = fade;
+  fade.color.mode = GradientRange.Mode.Gradient;
+  const rgb =
+    tint === 'fire'
+      ? [
+          keyColor(new Color(255, 252, 220, 255), 0),
+          keyColor(new Color(255, 150, 28, 255), 0.35),
+          keyColor(new Color(160, 28, 4, 255), 1),
+        ]
+      : [
+          keyColor(new Color(255, 246, 255, 255), 0),
+          keyColor(new Color(176, 72, 255, 255), 0.4),
+          keyColor(new Color(72, 16, 190, 255), 1),
+        ];
+  fade.color.gradient.setKeys(rgb, [keyAlpha(255, 0), keyAlpha(230, 0.25), keyAlpha(0, 1)]);
+  fade.enable = true;
+}
+
 function addBurst(
   node: Node,
   childName: string | null,
@@ -485,6 +592,7 @@ function addBurst(
   sizeMin: number,
   sizeMax: number,
   speed: number,
+  tint?: BurstTint,
 ): ParticleSystem {
   const host = childName ? new Node(childName) : node;
   if (childName) {
@@ -515,7 +623,8 @@ function addBurst(
   ps.renderer.velocityScale = 0;
   ps.renderer.lengthScale = 0;
   raiseFlash(ps);
-  fadeFlash(ps);
+  if (tint) fadeBurst(ps, tint);
+  else fadeFlash(ps);
   const burst = new Burst();
   burst.time = 0;
   burst.repeatCount = 1;

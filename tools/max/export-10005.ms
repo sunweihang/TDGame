@@ -4,7 +4,7 @@ statusPath = @"d:\Custom\TD\temp\ft-10005\export-status.txt"
 statsPath = @"d:\Custom\TD\temp\ft-10005\export-stats.txt"
 maxPath = @"d:\Custom\TD\temp\ft-10005\10005.max"
 outPath = @"d:\Custom\TD\assets\models\turret\10005.fbx"
-texPath = @"d:\Custom\TD\temp\ft-10005\textures\sci-fi_egg_prop_3d_model_basecolor.JPEG"
+texPath = @"d:\Custom\TD\temp\ft-10005\textures\sci-fi_turret_3d_model_basecolor.JPEG"
 
 fn writeLine path text = (
 	local f = createFile path

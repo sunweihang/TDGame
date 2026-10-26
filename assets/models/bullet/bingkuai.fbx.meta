@@ -1,0 +1,96 @@
+{
+  "ver": "2.3.14",
+  "importer": "fbx",
+  "imported": true,
+  "uuid": "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d",
+  "files": [],
+  "subMetas": {
+    "3ec76": {
+      "importer": "gltf-mesh",
+      "uuid": "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@3ec76",
+      "displayName": "",
+      "id": "3ec76",
+      "name": "b02:Mesh.mesh",
+      "userData": {
+        "gltfIndex": 0,
+        "triangleCount": 24
+      },
+      "ver": "1.1.1",
+      "imported": true,
+      "files": [
+        ".bin",
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "db4d2": {
+      "importer": "gltf-material",
+      "uuid": "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@db4d2",
+      "displayName": "",
+      "id": "db4d2",
+      "name": "02 - Default.material",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    },
+    "f1884": {
+      "importer": "gltf-scene",
+      "uuid": "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@f1884",
+      "displayName": "",
+      "id": "f1884",
+      "name": "bingkuai.prefab",
+      "userData": {
+        "gltfIndex": 0
+      },
+      "ver": "1.0.14",
+      "imported": true,
+      "files": [
+        ".json"
+      ],
+      "subMetas": {}
+    }
+  },
+  "userData": {
+    "imageMetas": [],
+    "fbx": {
+      "smartMaterialEnabled": true
+    },
+    "lods": {
+      "enable": false,
+      "hasBuiltinLOD": false,
+      "options": [
+        {
+          "screenRatio": 0.25,
+          "faceCount": 1
+        },
+        {
+          "screenRatio": 0.125,
+          "faceCount": 0.25
+        },
+        {
+          "screenRatio": 0.01,
+          "faceCount": 0.1
+        }
+      ]
+    },
+    "assetFinder": {
+      "meshes": [
+        "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@3ec76"
+      ],
+      "skeletons": [],
+      "textures": [],
+      "materials": [
+        "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@db4d2"
+      ],
+      "scenes": [
+        "47e2e88d-b19b-4c09-a4ea-82bfa193ce2d@f1884"
+      ]
+    }
+  }
+}

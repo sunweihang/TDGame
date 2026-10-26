@@ -4,7 +4,7 @@ statusPath = @"d:\Custom\TD\temp\ft-10006\split-status.txt"
 statsPath = @"d:\Custom\TD\temp\ft-10006\split-stats.txt"
 maxPath = @"d:\Custom\TD\temp\ft-10006\10006.max"
 shotDir = @"d:\Custom\TD\temp\ft-10006\split-shots"
-texPath = @"d:\Custom\TD\temp\ft-10006\textures\dragon_head_3d_model_basecolor.JPEG"
+texPath = @"d:\Custom\TD\temp\ft-10006\textures\sci-fi_turret_3d_model_basecolor.JPEG"
 
 fn writeLine path text = (
 	local f = createFile path
@@ -78,8 +78,8 @@ try (
 	if mesh == undefined then throw "no mesh"
 	if classof mesh != Editable_mesh do convertToMesh mesh
 	local skin = mesh.material
-	-- Empty column between the pedestal at z=8.89 and the head at z=9.77.
-	local cutZ = 9.33
+	-- Neck column has no vertices between the ring at the neck ring near z=12.44 and the egg at z=13.83.
+	local cutZ = 7.04548
 	note ("cutZ " + (cutZ as string))
 	local allFaces = #{1..mesh.numfaces}
 	meshop.slice mesh allFaces [0, 0, 1] cutZ separate:true

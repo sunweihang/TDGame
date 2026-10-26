@@ -275,12 +275,45 @@ function addGold(n: number): void {
   if (lab) lab.string = String(_gold);
 }
 
+/** Gold shown on the HUD card. */
+export function goldCount(): number {
+  if (_gold < 0) _gold = readGold();
+  return _gold;
+}
+
+/** Take gold off the HUD card. Returns false when the card cannot cover `n`. */
+export function spendGold(n: number): boolean {
+  const cost = Math.floor(n);
+  if (cost <= 0) return true;
+  if (_gold < 0) _gold = readGold();
+  if (_gold < cost) return false;
+  _gold -= cost;
+  const lab = goldLabel();
+  if (lab) lab.string = String(_gold);
+  return true;
+}
+
+let _onFull: (() => void) | null = null;
+
+/** Fires once when the vial crosses 100. */
+export function onEnergyFull(fn: () => void): void {
+  _onFull = fn;
+}
+
+/** Write the vial, including the stored count the next token adds to. */
+export function writeEnergy(value: number): void {
+  _energy = Math.max(0, Math.min(100, Math.round(value)));
+  energyBar()?.setEnergy(_energy);
+}
+
 function addEnergy(n: number): void {
   if (n <= 0) return;
   const bar = energyBar();
   if (_energy < 0) _energy = bar ? bar.value : 0;
+  const before = _energy;
   _energy = Math.max(0, Math.min(100, _energy + n));
   bar?.setEnergy(_energy);
+  if (before < 100 && _energy >= 100) _onFull?.();
 }
 
 function punch(node: Node | null, mag: number): void {

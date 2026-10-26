@@ -17,7 +17,10 @@ import {
   game,
   gfx,
 } from 'cc';
-import { bulletHeight, createLaserFlash, spawnBullet20000 } from '../bullet/BlueLaser.ts';
+import { bulletHeight, createLaserFlash, createMuzzleBurst, spawnBullet20000 } from '../bullet/BlueLaser.ts';
+import { spawnIceChunk } from '../bullet/IceChunk.ts';
+import { createOrbFlash, warmupRailFlash } from '../bullet/OrbFlash.ts';
+import { orbTune, spawnPurpleOrb, warmupPurpleOrb } from '../bullet/PurpleOrb.ts';
 import { FlameJet, mountFlame } from '../effect/FlameJet.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
 import { TurretPlate } from './TurretPlate.ts';
@@ -25,6 +28,8 @@ import { TurretPlate } from './TurretPlate.ts';
 const { ccclass } = _decorator;
 
 const BULLET_20000 = '67b521f6-7e75-465a-a78e-f860d0e19013';
+const BULLET_20001 = 'e3a0c269-8f47-4da5-b132-c20001bb2001';
+const BULLET_20002 = 'e4a13c70-9d46-4f80-a127-c20002bb2002';
 const TARGET_HEIGHT = 2.35;
 const SHOT_GAP = 0.16;
 const AIM_GATE = 0.14;
@@ -54,6 +59,18 @@ const _wAxis = new Vec3();
 const _side = new Vec3();
 const _spec = new Color(200, 214, 232, 255);
 const _dust = new Color(232, 236, 244, 255);
+/** Lifted armor paint. The Tripo maps are nearly black, so the loose copies are brightened. */
+const RAIL_TEX: Record<string, string> = {
+  '10014': '75642a1b-8d7e-451b-a7de-7e6fa13214a4@6c48a',
+  '10015': 'a3ae3c37-c070-4028-81fc-c85db8fd1950@6c48a',
+  '10016': '6f73cf35-a135-4d2c-a2e9-4010afd8f340@6c48a',
+};
+const FLAME_TEX: Record<string, string> = {
+  '10005': '8d0cd6d8-ff71-4881-82c9-7a0ec19cce9d@6c48a',
+  '10006': '81608a8a-706f-4a70-87bb-9becb649c2f4@6c48a',
+  '10007': '393e5633-2c7b-4f1d-bcf0-921a1660ca52@6c48a',
+};
+
 const STEEL_TEX: Record<string, string> = {
   '10000': 'ef6724b5-3a8e-4bfc-b3c7-6f6667289c5e@6c48a',
   '10002': 'f76eb578-6645-4fa2-b30e-4d130d714683@6c48a',
@@ -69,6 +86,21 @@ function gunInk(name: string): 'plain' | 'gun' {
   return 'plain';
 }
 
+function isIce(name: string): boolean {
+  return name === '10008' || name === '10009' || name === '10013';
+}
+
+function isRail(name: string): boolean {
+  return name === '10014' || name === '10015' || name === '10016';
+}
+
+/** Slower throws, and a higher freeze roll, as the ice cannon goes up a tier. */
+function iceTune(name: string): { gap: number; chance: number } {
+  if (name === '10013') return { gap: 0.64, chance: 0.85 };
+  if (name === '10009') return { gap: 0.8, chance: 0.7 };
+  return { gap: 0.96, chance: 0.55 };
+}
+
 function keepsOwnSkin(root: Node, mr: MeshRenderer): boolean {
   if (mr.node.name !== 'TurretBase') return false;
   return root.name === '10002' || root.name === '10000';
@@ -81,11 +113,16 @@ function steelFor(root: Node, mr: MeshRenderer): string | undefined {
   return STEEL_TEX[root.name];
 }
 
+/** Steel swap, or the brightened railgun and flamethrower paint. Undefined keeps the material's own map. */
+function paintFor(root: Node, mr: MeshRenderer): string | undefined {
+  return steelFor(root, mr) ?? RAIL_TEX[root.name] ?? FLAME_TEX[root.name];
+}
+
 function applySteel(root: Node, uuid: string, tex: Texture2D): void {
   const renderers = root.getComponentsInChildren(MeshRenderer);
   for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
-    if (steelFor(root, mr) !== uuid) continue;
+    if (paintFor(root, mr) !== uuid) continue;
     const slots = mr.sharedMaterials.length;
     for (let s = 0; s < slots; s++) {
       mr.getSharedMaterial(s)?.setProperty('mainTexture', tex);
@@ -122,12 +159,12 @@ function toneTurret(root: Node): void {
   const needed = new Set<string>();
   const renderers = root.getComponentsInChildren(MeshRenderer);
   for (let i = 0; i < renderers.length; i++) {
-    const id = steelFor(root, renderers[i]);
+    const id = paintFor(root, renderers[i]);
     if (id) needed.add(id);
   }
   for (let i = 0; i < renderers.length; i++) {
     const mr = renderers[i];
-    const steelId = steelFor(root, mr);
+    const steelId = paintFor(root, mr);
     const steel = steelId ? _steel.get(steelId) : undefined;
     const slots = mr.sharedMaterials.length;
     for (let s = 0; s < slots; s++) {
@@ -192,8 +229,10 @@ type Gun = {
   target: MonsterUnit | null;
   plate: TurretPlate | null;
   restWorld: Vec3 | null;
-  /** Continuous jet for 10005, 10006, and 10007. Null on every other gun. */
+  /** Continuous jet for flamethrowers 10005, 10006, and 10007. Null on guns and ice cannons. */
   flame: FlameJet | null;
+  /** Ice cannons 10008, 10009, and 10013 throw chunk 20001. Railguns 10014, 10015, and 10016 fire bolt 20000. */
+  ice: boolean;
 };
 
 /** Bottom ring of the head mesh, in head-local space. Far off the yaw axis means the node origin is not the socket. */
@@ -760,19 +799,22 @@ function headSideMouth(
 }
 
 /**
- * Open mouth on 10007. The spiked spine sticks out past the snout, so the
- * global tip is the back. The mouth is the narrow face on the upper head.
+ * Side port on the ice cannons and the railguns.
+ * The collar or the side coils are wider than the bore, so the search starts above the rim
+ * and keeps one end of the head. `sign` is -1 for Max -Y (10014 and the ice cannons) and
+ * +1 for Max +Y (10015 and 10016, whose lens sits on that end).
  * Returns the face width, or zero.
  */
-function headDragonMouth(
+function headBeaconMouth(
   data: ArrayLike<number>,
   normals: ArrayLike<number> | null,
   out: Vec3,
   outDir: Vec3,
+  sign = -1,
 ): number {
-  if (!normals) return 0;
   const n = (data.length / 3) | 0;
   if (n < 12) return 0;
+  const positive = sign > 0;
   let minZ = Infinity;
   let maxZ = -Infinity;
   for (let i = 0; i < n; i++) {
@@ -780,56 +822,50 @@ function headDragonMouth(
     if (z < minZ) minZ = z;
     if (z > maxZ) maxZ = z;
   }
-  const floorZ = minZ + (maxZ - minZ) * 0.45;
-  let bestW = Infinity;
-  let bestSign = 0;
-  let bestX = 0;
-  let bestY = 0;
-  let bestZ = 0;
-  for (let sign = -1; sign <= 1; sign += 2) {
-    let tip = sign > 0 ? -Infinity : Infinity;
-    for (let i = 0; i < n; i++) {
-      if (data[i * 3 + 2] < floorZ) continue;
-      const y = data[i * 3 + 1];
-      if (sign > 0 ? y > tip : y < tip) tip = y;
-    }
-    const band = 0.32;
-    let x = 0;
-    let y = 0;
-    let z = 0;
-    let count = 0;
-    let minX = Infinity;
-    let maxX = -Infinity;
-    for (let i = 0; i < n; i++) {
-      if (data[i * 3 + 2] < floorZ) continue;
-      const py = data[i * 3 + 1];
-      const onTip = sign > 0 ? py >= tip - band : py <= tip + band;
-      if (!onTip) continue;
-      const facing = normals[i * 3 + 1];
-      if (sign > 0 ? facing < 0.35 : facing > -0.35) continue;
-      const px = data[i * 3];
-      const pz = data[i * 3 + 2];
-      x += px;
-      y += py;
-      z += pz;
-      count += 1;
-      if (px < minX) minX = px;
-      if (px > maxX) maxX = px;
-    }
-    if (count < 8) continue;
-    const width = maxX - minX;
-    if (width <= 0 || width >= bestW) continue;
-    bestW = width;
-    bestSign = sign;
-    const inv = 1 / count;
-    bestX = x * inv;
-    bestY = y * inv;
-    bestZ = z * inv;
+  const floorZ = minZ + (maxZ - minZ) * 0.12;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (data[i * 3 + 2] < floorZ) continue;
+    const y = data[i * 3 + 1];
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
   }
-  if (!bestSign) return 0;
-  out.set(bestX, bestY, bestZ);
-  outDir.set(0, bestSign, 0);
-  return bestW;
+  const span = maxY - minY;
+  if (!(span > 0.2)) return 0;
+  const band = span * 0.08;
+  const tip = positive ? maxY : minY;
+  const cap: number[] = [];
+  const loose: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (data[i * 3 + 2] < floorZ) continue;
+    const y = data[i * 3 + 1];
+    if (positive ? y < tip - band : y > tip + band) continue;
+    loose.push(i);
+    if (!normals) continue;
+    const ny = normals[i * 3 + 1];
+    if (positive ? ny < 0.35 : ny > -0.35) continue;
+    cap.push(i);
+  }
+  const use = cap.length >= 8 ? cap : loose;
+  if (use.length < 4) return 0;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  for (let k = 0; k < use.length; k++) {
+    const o = use[k] * 3;
+    x += data[o];
+    y += data[o + 1];
+    z += data[o + 2];
+    if (data[o] < minX) minX = data[o];
+    if (data[o] > maxX) maxX = data[o];
+  }
+  const inv = 1 / use.length;
+  out.set(x * inv, y * inv, z * inv);
+  outDir.set(0, positive ? 1 : -1, 0);
+  return Math.max(maxX - minX, 0.32);
 }
 
 /**
@@ -1199,6 +1235,10 @@ export class TurretGun extends Component {
   private _ready = false;
   private _bullet: Prefab | null = null;
   private _bulletAttempts = 0;
+  private _iceBullet: Prefab | null = null;
+  private _iceAttempts = 0;
+  private _orb: Prefab | null = null;
+  private _orbAttempts = 0;
 
   onLoad(): void {
     director.on(Director.EVENT_AFTER_UPDATE, this._afterUpdate, this);
@@ -1212,6 +1252,10 @@ export class TurretGun extends Component {
 
   start(): void {
     this._loadBullet();
+    this._loadIce();
+    this._loadOrb();
+    warmupPurpleOrb();
+    warmupRailFlash();
     this._ready = true;
   }
 
@@ -1237,7 +1281,7 @@ export class TurretGun extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10003' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10008' || name === '10009' || name === '10010' || name === '10011' || name === '10012' || name === '10013' || name === '10014' || name === '10015' || name === '10016') found.push(kids[i]);
     }
     return found;
   }
@@ -1279,6 +1323,7 @@ export class TurretGun extends Component {
       target: null,
       plate: null,
       flame: null,
+      ice: false,
     };
     if (fit) this._place(root);
     root.updateWorldTransform();
@@ -1408,7 +1453,7 @@ export class TurretGun extends Component {
     else if (gun.root.name === '10012') this._bindHeadTrio(gun);
     else if (gun.root.name === '10011') this._bindHeadTwin(gun);
     else if (gun.root.name === '10010') this._bindHeadMouth(gun);
-    else if (gun.root.name === '10005' || gun.root.name === '10006' || gun.root.name === '10007') this._bindHeadNozzle(gun);
+    else if (gun.root.name === '10005' || gun.root.name === '10006' || gun.root.name === '10007' || gun.root.name === '10008' || gun.root.name === '10009' || gun.root.name === '10013' || gun.root.name === '10014' || gun.root.name === '10015' || gun.root.name === '10016') this._bindHeadNozzle(gun);
     else this._bindTwin(gun);
   }
 
@@ -1470,9 +1515,10 @@ export class TurretGun extends Component {
     gun.forward.set(_dir.x, _dir.y, _dir.z);
   }
 
-  /** 10005, 10006, and 10007 keep the nozzle on the head. The flame jet sits on that mouth. */
+  /** 10005, 10006, and 10007 put a jet on the mouth. 10008, 10009, and 10013 throw from that same mouth. 10014, 10015, and 10016 fire bolt 20000 from it. */
   private _bindHeadNozzle(gun: Gun): void {
     gun.muzzles.length = 0;
+    if (isIce(gun.root.name)) gun.ice = true;
     const head = gun.head;
     if (!head?.isValid) return;
     const mesh = head.getComponent(MeshRenderer)?.mesh;
@@ -1489,17 +1535,24 @@ export class TurretGun extends Component {
     } catch {
       normals = null;
     }
-    const dragon = gun.root.name === '10007';
+    const beacon = isIce(gun.root.name);
+    const rail = isRail(gun.root.name);
+    const muzzleSign = gun.root.name === '10015' || gun.root.name === '10016' ? 1 : -1;
     const width = data
-      ? dragon
-        ? headDragonMouth(data, normals, _local, _dir)
+      ? beacon || rail
+        ? headBeaconMouth(data, normals, _local, _dir, muzzleSign)
         : headSideMouth(data, normals, _local, _dir)
       : 0;
     if (width <= 0) return;
     gun.mouth = width;
     gun.muzzle.set(_local.x, _local.y, _local.z);
     gun.forward.set(_dir.x, _dir.y, _dir.z);
-    gun.flame = mountFlame(head, gun.muzzle, gun.forward, gun.mouth);
+    if (beacon) {
+      gun.ice = true;
+      return;
+    }
+    if (rail) return;
+    gun.flame = mountFlame(head, gun.muzzle, gun.forward, gun.mouth, 'flame');
   }
 
   /** 10012 keeps all three barrels on the head. Each mouth fires its own bolt. */
@@ -1841,6 +1894,80 @@ export class TurretGun extends Component {
     }
   }
 
+  /** One slow purple ball. A short discharge leaves the mouth along the bore. */
+  private _fireOrb(gun: Gun): void {
+    const head = gun.head ?? gun.root;
+    const scene = this.node.scene;
+    const prefab = this._orb;
+    if (!head?.isValid || !scene || !prefab) return;
+    head.updateWorldTransform();
+    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
+    _dir.y = 0;
+    if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
+    else _dir.normalize();
+    Vec3.transformMat4(_world, gun.muzzle, head.worldMatrix);
+    const tune = orbTune(gun.root.name);
+    const flashNudge = Math.max(0.9, gun.mouth * 0.5);
+    _world.x += _dir.x * flashNudge;
+    _world.y += _dir.y * flashNudge;
+    _world.z += _dir.z * flashNudge;
+    createOrbFlash(head, _world, _dir, tune.size);
+    const ballNudge = (gun.mouth > 0 ? gun.mouth * 0.55 : 0.35) + tune.size * 0.55;
+    const rest = Math.max(0, ballNudge - flashNudge);
+    _world.x += _dir.x * rest;
+    _world.y += _dir.y * rest;
+    _world.z += _dir.z * rest;
+    spawnPurpleOrb(prefab, scene, _world, _dir, tune);
+  }
+
+  /** One ice lump from the mouth, lobbed at the body the head is facing. */
+  private _throwIce(gun: Gun, monster: MonsterUnit): void {
+    const head = gun.head ?? gun.root;
+    const scene = this.node.scene;
+    const prefab = this._iceBullet;
+    if (!head?.isValid || !scene || !prefab) return;
+    head.updateWorldTransform();
+    Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
+    if (_dir.lengthSqr() < 1e-8) _dir.set(0, 0, 1);
+    else _dir.normalize();
+    Vec3.transformMat4(_world, gun.muzzle, head.worldMatrix);
+    const nudge = (gun.mouth > 0 ? gun.mouth * 0.5 : 0.3) + 2.6;
+    _world.x += _dir.x * nudge;
+    _world.y += _dir.y * nudge;
+    _world.z += _dir.z * nudge;
+    spawnIceChunk(prefab, scene, _world, monster, iceTune(gun.root.name).chance);
+  }
+
+  private _loadIce = (): void => {
+    assetManager.loadAny({ uuid: BULLET_20001 }, (err, asset) => {
+      if (err || !(asset instanceof Prefab)) {
+        this._iceAttempts += 1;
+        if (this._iceAttempts < 24) {
+          this.scheduleOnce(this._loadIce, 0.5);
+          return;
+        }
+        console.error('[TurretGun] bullet 20001 failed to load', err);
+        return;
+      }
+      this._iceBullet = asset;
+    });
+  };
+
+  private _loadOrb = (): void => {
+    assetManager.loadAny({ uuid: BULLET_20002 }, (err, asset) => {
+      if (err || !(asset instanceof Prefab)) {
+        this._orbAttempts += 1;
+        if (this._orbAttempts < 24) {
+          this.scheduleOnce(this._loadOrb, 0.5);
+          return;
+        }
+        console.error('[TurretGun] bullet 20002 failed to load', err);
+        return;
+      }
+      this._orb = asset;
+    });
+  };
+
   private _loadBullet = (): void => {
     assetManager.loadAny({ uuid: BULLET_20000 }, (err, asset) => {
       if (err || !(asset instanceof Prefab)) {
@@ -1867,30 +1994,47 @@ export class TurretGun extends Component {
     return dist + AIM_SLACK * turn;
   }
 
-  private _pick(gun: Gun, dt: number): MonsterUnit | null {
+  /**
+   * Circle the turret will turn toward. Flames measure from the neck, out as far as the
+   * jet can reach once the nozzle has swung around, so a mouth facing the wrong way
+   * still picks the monsters beside the base.
+   */
+  private _watch(gun: Gun): { x: number; z: number; range: number; flame: FlameJet | null } {
     const head = gun.head ?? gun.root;
     const pivot = gun.pivot?.isValid ? gun.pivot : head;
     head.updateWorldTransform();
     const origin = pivot.worldPosition;
+    const flame = gun.flame?.isValid ? gun.flame : null;
+    if (isRail(gun.root.name)) {
+      return { x: origin.x, z: origin.z, range: orbTune(gun.root.name).reach, flame: null };
+    }
+    if (!flame) return { x: origin.x, z: origin.z, range: RANGE, flame: null };
+    flame.node.updateWorldTransform();
+    const mouth = flame.node.worldPosition;
+    const off = Math.hypot(mouth.x - origin.x, mouth.z - origin.z);
+    return { x: origin.x, z: origin.z, range: flame.reach + off, flame };
+  }
+
+  private _pick(gun: Gun, dt: number): MonsterUnit | null {
+    const head = gun.head ?? gun.root;
+    head.updateWorldTransform();
     Vec3.transformQuat(_dir, gun.forward, head.worldRotation);
     _dir.y = 0;
     const facing = _dir.lengthSqr() > 1e-8;
     if (facing) _dir.normalize();
-    const flame = gun.flame?.isValid ? gun.flame : null;
-    if (flame) flame.node.updateWorldTransform();
-    const mouth = flame ? flame.node.worldPosition : origin;
-    const range = flame ? flame.reach : RANGE;
-    const limited = flame !== null;
+    const watch = this._watch(gun);
+    const limited = watch.flame !== null;
     let best: MonsterUnit | null = null;
     let bestScore = Infinity;
     const list = MonsterUnit.all;
     for (let i = 0; i < list.length; i++) {
       const unit = list[i];
       if (!unit.threat || !unit.node?.isValid) continue;
+      if (gun.ice && unit.frozen) continue;
       const p = unit.node.worldPosition;
-      const dx = p.x - mouth.x;
-      const dz = p.z - mouth.z;
-      const limit = limited ? range + unit.hitRadius : range;
+      const dx = p.x - watch.x;
+      const dz = p.z - watch.z;
+      const limit = limited ? watch.range + unit.hitRadius : watch.range;
       if (dx * dx + dz * dz >= limit * limit) continue;
       const score = this._score(facing, dx, dz);
       if (score >= bestScore) continue;
@@ -1898,11 +2042,11 @@ export class TurretGun extends Component {
       best = unit;
     }
     const cur = gun.target;
-    if (cur?.threat && cur.node?.isValid && cur !== best) {
+    if (cur?.threat && cur.node?.isValid && cur !== best && !(gun.ice && cur.frozen)) {
       const p = cur.node.worldPosition;
-      const dx = p.x - mouth.x;
-      const dz = p.z - mouth.z;
-      const keep = limited ? range + cur.hitRadius : range;
+      const dx = p.x - watch.x;
+      const dz = p.z - watch.z;
+      const keep = limited ? watch.range + cur.hitRadius : watch.range;
       if (dx * dx + dz * dz <= keep * keep) {
         const curScore = this._score(facing, dx, dz);
         if (gun.lock > 0 || curScore <= bestScore + 3.5) {
@@ -2018,14 +2162,29 @@ export class TurretGun extends Component {
       if (gun.flame?.isValid) gun.flame.setLit(breathing);
       if (!plate?.alive) continue;
       gun.cool -= dt;
+      if (gun.ice) {
+        if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
+        if (!this._iceBullet) continue;
+        gun.cool = iceTune(gun.root.name).gap;
+        this._throwIce(gun, monster);
+        continue;
+      }
       if (gun.flame?.isValid) {
         if (!breathing) continue;
         if (gun.cool > 0) continue;
         gun.cool = SHOT_GAP;
         gun.flame.scorch();
+        const mouth = gun.flame.node.worldPosition;
+        createMuzzleBurst(gun.head ?? gun.root, mouth, Math.max(3.4, gun.mouth * 2.6), 'fire', 0.34);
         continue;
       }
       if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
+      if (isRail(gun.root.name)) {
+        if (!this._orb) continue;
+        gun.cool = orbTune(gun.root.name).gap;
+        this._fireOrb(gun);
+        continue;
+      }
       gun.cool = SHOT_GAP;
       this._fire(gun);
     }

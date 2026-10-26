@@ -35,6 +35,22 @@ const BG_CAP_PX = 18;
 const FILL_TEX_W = 152;
 const FILL_TEX_H = 31;
 const FILL_CAP_PX = 15;
+/**
+ * Status icon height as a fraction of the capsule.
+ * A little taller than the bar so the flame still reads on the 80 m camera,
+ * and short enough that a row of marks stays on the capsule.
+ */
+const BUFF_H = 1.7;
+const BUFF_GAP = 0.18;
+const BUFF_FLAME = 'b9c3e5a1-2d48-4f16-8a70-1e4c6b8d0f19@6c48a';
+const BUFF_FLAME_ASPECT = 130 / 162;
+
+export type BuffMark = 'flame';
+
+const _buffMat = new Map<BuffMark, Material>();
+const _buffAspect = new Map<BuffMark, number>();
+let _buffLoading = false;
+let _buffGaveUp = false;
 
 const _look = new Vec3();
 const _nudge = new Vec3();
@@ -219,7 +235,24 @@ export function hpBarRoot(scene: Node | null): Node | null {
   return root;
 }
 
+function warmupBuffMarks(): void {
+  if (_buffMat.has('flame') || _buffLoading || _buffGaveUp) return;
+  _buffLoading = true;
+  loadAsset(BUFF_FLAME, asTexture).then((tex) => {
+    _buffLoading = false;
+    if (!tex) {
+      _buffGaveUp = true;
+      console.error('[HpBar] 灼烧标记加载失败');
+      return;
+    }
+    const aspect = tex.width > 0 && tex.height > 0 ? tex.width / tex.height : BUFF_FLAME_ASPECT;
+    _buffAspect.set('flame', aspect);
+    _buffMat.set('flame', unlitMat(tex, new Color(255, 140, 24, 255)));
+  });
+}
+
 export function warmupHpBar(): Promise<void> {
+  warmupBuffMarks();
   if (_ready) return Promise.resolve();
   if (_loading) return _loading;
   _loading = Promise.all([
@@ -286,12 +319,16 @@ export class HpBar {
   private readonly _bgMr: MeshRenderer | null;
   private readonly _fillMr: MeshRenderer | null;
   private _slotMr: MeshRenderer | null = null;
+  private readonly _bg: Node;
+  private readonly _markMrs: MeshRenderer[] = [];
+  private _markKey = '';
   private _bgMat: Material | null = null;
   private _slotMat: Material | null = null;
   private _ratio = 1;
 
   constructor(node: Node, bg: Node, fill: Node, fillMat: Material, tint: Color | null = null, fillW = FILL_W, fillH = FILL_H) {
     this.node = node;
+    this._bg = bg;
     this._fill = fill;
     this._fillW = fillW;
     this._fillH = fillH;
@@ -407,6 +444,72 @@ export class HpBar {
     if (this._bgMr) this._bgMr.priority = pri;
     if (this._slotMr) this._slotMr.priority = pri + 1;
     if (this._fillMr) this._fillMr.priority = pri + 2;
+    const marks = this._markMrs;
+    for (let i = 0; i < marks.length; i++) marks[i].priority = pri + 3 + i;
+  }
+
+  /**
+   * Status icons centered on top of the capsule, left to right.
+   * One flame sits in the middle. More marks share that same row.
+   */
+  setMarks(ids: readonly BuffMark[]): void {
+    let key = '';
+    for (let i = 0; i < ids.length; i++) key += ids[i] + ',';
+    if (key === this._markKey) return;
+    for (let i = 0; i < ids.length; i++) {
+      if (_buffMat.has(ids[i])) continue;
+      warmupBuffMarks();
+      return;
+    }
+    this._markKey = key;
+    this._layoutMarks(ids);
+  }
+
+  private _layoutMarks(ids: readonly BuffMark[]): void {
+    const kids = this.node.children;
+    for (let i = kids.length - 1; i >= 0; i--) {
+      if (kids[i].name === 'Buff') kids[i].destroy();
+    }
+    this._markMrs.length = 0;
+    const count = ids.length;
+    if (!count) return;
+    const bgW = Math.abs(this._bg.scale.x);
+    const bgH = Math.abs(this._bg.scale.y);
+    let iconH = bgH * BUFF_H;
+    let gap = iconH * BUFF_GAP;
+    const widths: number[] = [];
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      const aspect = _buffAspect.get(ids[i]) ?? BUFF_FLAME_ASPECT;
+      const w = iconH * aspect;
+      widths.push(w);
+      total += w;
+    }
+    total += gap * (count - 1);
+    const limit = Math.max(bgW, iconH);
+    if (total > limit) {
+      const fit = limit / total;
+      iconH *= fit;
+      gap *= fit;
+      total = 0;
+      for (let i = 0; i < count; i++) {
+        widths[i] *= fit;
+        total += widths[i];
+      }
+      total += gap * (count - 1);
+    }
+    const y = bgH * 0.5 + iconH * 0.5 + bgH * 0.08;
+    let x = -total * 0.5;
+    for (let i = 0; i < count; i++) {
+      const mat = _buffMat.get(ids[i]);
+      if (!mat) continue;
+      const w = widths[i];
+      const node = bindQuad(this.node, 'Buff', mat, w, iconH, FILL_Z * 4, unitQuadMesh());
+      node.setPosition(x + w * 0.5, y, FILL_Z * 4);
+      const mr = node.getComponent(MeshRenderer);
+      if (mr) this._markMrs.push(mr);
+      x += w + gap;
+    }
   }
 
   dispose(): void {

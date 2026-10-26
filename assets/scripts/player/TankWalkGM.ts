@@ -22,6 +22,8 @@ import {
   screen,
   utils,
 } from 'cc';
+import { baseEffectsOn, setBaseEffects } from '../effect/BaseGem.ts';
+import { showAbilityPick } from '../game/AbilityPick.ts';
 import { monsterSpawning, setMonsterSpawning } from '../monster/MonsterField.ts';
 import { PlayerTank } from './PlayerTank.ts';
 
@@ -33,23 +35,34 @@ const Y = 0.1;
 /** Rebuild while the heading or the frame changes, but not every tick. */
 const REBUILD = 0.16;
 
-const CHIP_W = 148;
-const CHIP_H = 68;
-/** Movement below this, in UI pixels, still counts as a tap. */
-const DRAG_SLOP = 16;
-const PANEL_W = 640;
-const PANEL_H = 1004;
-const ROW_W = 520;
-const ROW_H = 112;
-const PLANT_W = 252;
-const PLANT_H = 76;
-const TITLE_Y = 434;
-const WALK_Y = 326;
-const SPAWN_Y = 198;
-const PLANT_LABEL_Y = 96;
-const PLANT_TOP = 24;
-const PLANT_STEP = 88;
-const CLOSE_Y = -428;
+/** Card width. Content is inset by PAD_X so every row, rule, and the close bar share one edge. */
+const PANEL_W = 700;
+const PAD_X = 28;
+const PAD_TOP = 26;
+const PAD_BOT = 24;
+const INNER_W = PANEL_W - PAD_X * 2;
+const HEADER_H = 96;
+const ROW_H = 84;
+const ROW_GAP = 12;
+const AFTER_ROWS = 18;
+const SECTION_H = 40;
+const AFTER_SECTION = 8;
+const GROUP_TITLE_H = 32;
+const GROUP_GAP = 16;
+const PLANT_H = 82;
+const CHIP_GAP_X = 10;
+const CHIP_GAP_Y = 10;
+const CHIP_TITLE_GAP = 6;
+const CLOSE_GAP = 20;
+const CLOSE_H = 72;
+const TEXT_INSET = 22;
+const PILL_INSET = 16;
+const ROW_PILL_W = 100;
+const ROW_PILL_H = 40;
+const CHIP_PILL_W = 60;
+const CHIP_PILL_H = 32;
+const ROW_RADIUS = 18;
+const CHIP_RADIUS = 14;
 
 type PlantKind =
   | '10000'
@@ -59,46 +72,105 @@ type PlantKind =
   | '10005'
   | '10006'
   | '10007'
+  | '10008'
+  | '10009'
   | '10010'
   | '10011'
-  | '10012';
+  | '10012'
+  | '10013'
+  | '10014'
+  | '10015'
+  | '10016';
 
-/** Ids the empty pads can roll. Defaults are the level-3 gun and the three flamethrowers. */
-const PLANT_KINDS: { id: PlantKind; name: string }[] = [
-  { id: '10010', name: '10010 枪1' },
-  { id: '10011', name: '10011 枪2' },
-  { id: '10012', name: '10012 枪3' },
-  { id: '10005', name: '10005 火1' },
-  { id: '10006', name: '10006 火2' },
-  { id: '10007', name: '10007 火3' },
-  { id: '10000', name: '10000 激光' },
-  { id: '10001', name: '10001 旧枪' },
-  { id: '10002', name: '10002 双管' },
-  { id: '10004', name: '10004 九管' },
+type PlantSpec = { id: PlantKind; name: string; tag: string };
+
+/** Empty-pad roll order. Groups only change how the panel is drawn. */
+const PLANT_GROUPS: { title: string; cols: number; items: PlantSpec[] }[] = [
+  {
+    title: '机枪',
+    cols: 3,
+    items: [
+      { id: '10010', name: '枪1', tag: '10010' },
+      { id: '10011', name: '枪2', tag: '10011' },
+      { id: '10012', name: '枪3', tag: '10012' },
+    ],
+  },
+  {
+    title: '火焰',
+    cols: 3,
+    items: [
+      { id: '10005', name: '火1', tag: '10005' },
+      { id: '10006', name: '火2', tag: '10006' },
+      { id: '10007', name: '火3', tag: '10007' },
+    ],
+  },
+  {
+    title: '冰炮',
+    cols: 3,
+    items: [
+      { id: '10008', name: '冰1', tag: '10008' },
+      { id: '10009', name: '冰2', tag: '10009' },
+      { id: '10013', name: '冰3', tag: '10013' },
+    ],
+  },
+  {
+    title: '电磁',
+    cols: 3,
+    items: [
+      { id: '10014', name: '电1', tag: '10014' },
+      { id: '10015', name: '电2', tag: '10015' },
+      { id: '10016', name: '电3', tag: '10016' },
+    ],
+  },
+  {
+    title: '其他',
+    cols: 2,
+    items: [
+      { id: '10000', name: '激光', tag: '10000' },
+      { id: '10001', name: '旧枪', tag: '10001' },
+      { id: '10002', name: '双管', tag: '10002' },
+      { id: '10004', name: '九管', tag: '10004' },
+    ],
+  },
 ];
 
-const _plantOn = new Set<PlantKind>(['10012', '10005', '10006', '10007']);
+const _plantOn = new Set<PlantKind>(['10012', '10005', '10006', '10007', '10008', '10009', '10013', '10014', '10015', '10016']);
 
 const _ink = new Color(48, 230, 96, 130);
-const _inkOn = new Color(170, 255, 190, 255);
-const _inkOff = new Color(220, 230, 220, 230);
-const _edge = new Color(0, 0, 0, 255);
-const _shadeInk = new Color(0, 0, 0, 156);
-const _chipInk = new Color(16, 28, 20, 220);
-const _chipEdge = new Color(140, 190, 150, 210);
-const _cardInk = new Color(14, 24, 18, 244);
-const _cardEdge = new Color(126, 198, 146, 255);
-const _rowInk = new Color(30, 46, 36, 255);
-const _rowInkOn = new Color(34, 96, 58, 255);
-const _rowEdge = new Color(86, 140, 104, 210);
-const _rowEdgeOn = new Color(176, 255, 196, 230);
-const _closeInk = new Color(46, 36, 32, 255);
-const _closeEdge = new Color(180, 140, 110, 200);
+const _edge = new Color(0, 0, 0, 220);
+const _shadeInk = new Color(0, 0, 0, 188);
+const _gold = new Color(236, 204, 122, 255);
+const _goldText = new Color(226, 196, 128, 255);
+const _goldDim = new Color(212, 176, 96, 130);
+const _labelInk = new Color(236, 240, 230, 255);
+const _mutedInk = new Color(154, 170, 156, 230);
+const _cardInk = new Color(8, 16, 14, 248);
+const _cardEdge = new Color(214, 178, 98, 235);
+const _cardInner = new Color(232, 210, 160, 42);
+const _cardSheen = new Color(255, 244, 214, 16);
+const _rowInk = new Color(18, 30, 24, 255);
+const _rowInkOn = new Color(22, 78, 48, 255);
+const _rowEdge = new Color(62, 88, 72, 210);
+const _rowEdgeOn = new Color(128, 214, 154, 230);
+const _plateInner = new Color(255, 255, 255, 20);
+const _plateInnerOn = new Color(210, 255, 224, 42);
+const _accent = new Color(132, 230, 158, 255);
+const _pillOn = new Color(84, 204, 112, 255);
+const _pillOnText = new Color(10, 36, 18, 255);
+const _pillOff = new Color(46, 58, 50, 255);
+const _pillOffText = new Color(176, 186, 176, 235);
+const _pillAct = new Color(212, 168, 78, 255);
+const _pillActText = new Color(36, 24, 8, 255);
+const _pillRimOn = new Color(255, 255, 255, 90);
+const _pillRimOff = new Color(255, 255, 255, 28);
+const _closeInk = new Color(46, 32, 24, 255);
+const _closeEdge = new Color(204, 158, 92, 230);
+const _closeText = new Color(246, 228, 196, 255);
+const _shadowInk = new Color(0, 0, 0, 130);
 
 let _finger = false;
 let _linger = false;
 let _open = false;
-const _point = new Vec3();
 
 /** True while a GM control owns the pointer, including the frame it lifts, or the panel is open. */
 export function walkGmHeld(): boolean {
@@ -108,16 +180,20 @@ export function walkGmHeld(): boolean {
 /** Checked turret ids, in list order. An empty pad rolls one of these once it has loaded. */
 export function gmPlantPool(): PlantKind[] {
   const pool: PlantKind[] = [];
-  for (let i = 0; i < PLANT_KINDS.length; i++) {
-    const id = PLANT_KINDS[i].id;
-    if (_plantOn.has(id)) pool.push(id);
+  for (let g = 0; g < PLANT_GROUPS.length; g++) {
+    const items = PLANT_GROUPS[g].items;
+    for (let i = 0; i < items.length; i++) {
+      const id = items[i].id;
+      if (_plantOn.has(id)) pool.push(id);
+    }
   }
   return pool;
 }
 
 /**
- * Corner GM button. It stays hidden until G, which shows and hides it.
- * Drag the button to place it. A tap opens the panel; 走区, 刷怪, and 种塔 switch inside.
+ * G opens and closes the panel directly.
+ * 走区, 开始刷怪, 显示基座特效, and 种塔 switch inside. 3选1 opens the ability popup.
+ * Spawning and the empty-pad effects stay off until those two switches are on.
  * The carpet moves when the hull turns, because the camera frame and the base
  * pads are tested with the hull rectangle.
  */
@@ -126,24 +202,25 @@ export class TankWalkGM extends Component {
   private _on = false;
   private _menuOpen = false;
   private _gDown = false;
-  private _drag = false;
-  private _grabX = 0;
-  private _grabY = 0;
-  private _pressX = 0;
-  private _pressY = 0;
-  private _root: Node | null = null;
   private _pad: Node | null = null;
   private _mr: MeshRenderer | null = null;
   private _mat: Material | null = null;
-  private _lab: Label | null = null;
-  private _chip: Node | null = null;
   private _panel: Node | null = null;
   private _shade: Node | null = null;
   private _walkLab: Label | null = null;
   private _spawnLab: Label | null = null;
+  private _baseLab: Label | null = null;
+  private _pickLab: Label | null = null;
   private _walkBg: Node | null = null;
   private _spawnBg: Node | null = null;
-  private readonly _plants: { id: PlantKind; lab: Label; bg: Node }[] = [];
+  private _baseBg: Node | null = null;
+  private _pickBg: Node | null = null;
+  private _walkPill: Node | null = null;
+  private _spawnPill: Node | null = null;
+  private _basePill: Node | null = null;
+  private _pickPill: Node | null = null;
+  private readonly _plants: { id: PlantKind; lab: Label; bg: Node; pill: Node; w: number }[] = [];
+  private readonly _groups: { ids: PlantKind[]; count: Label }[] = [];
   private _shadeW = 0;
   private _shadeH = 0;
   private _wait = 0;
@@ -186,85 +263,13 @@ export class TankWalkGM extends Component {
   private _keyDown = (event: EventKeyboard): void => {
     if (event.keyCode !== KeyCode.KEY_G || this._gDown) return;
     this._gDown = true;
-    this._toggleButton();
+    this._toggleMenu();
   };
 
   private _keyUp = (event: EventKeyboard): void => {
     if (event.keyCode !== KeyCode.KEY_G) return;
     this._gDown = false;
   };
-
-  private _toggleButton = (): void => {
-    const root = this._root;
-    if (!root) return;
-    const show = !root.active;
-    root.active = show;
-    if (show) {
-      const widget = root.getComponent(Widget);
-      if (widget?.enabled) widget.updateAlignment();
-    } else if (this._menuOpen) {
-      this._toggleMenu();
-    }
-  };
-
-  private _bindChip(root: Node): void {
-    root.on(Node.EventType.TOUCH_START, (event: EventTouch) => {
-      _finger = true;
-      event.propagationStopped = true;
-      this._drag = false;
-      const ui = event.getUILocation();
-      this._pressX = ui.x;
-      this._pressY = ui.y;
-      const parent = root.parent?.getComponent(UITransform);
-      if (!parent) return;
-      parent.convertToNodeSpaceAR(_point.set(ui.x, ui.y, 0), _point);
-      this._grabX = _point.x - root.position.x;
-      this._grabY = _point.y - root.position.y;
-    });
-    root.on(Node.EventType.TOUCH_MOVE, (event: EventTouch) => {
-      _finger = true;
-      event.propagationStopped = true;
-      const ui = event.getUILocation();
-      const dx = ui.x - this._pressX;
-      const dy = ui.y - this._pressY;
-      if (!this._drag && dx * dx + dy * dy < DRAG_SLOP * DRAG_SLOP) return;
-      this._drag = true;
-      const widget = root.getComponent(Widget);
-      if (widget?.enabled) widget.enabled = false;
-      const parent = root.parent?.getComponent(UITransform);
-      if (!parent) return;
-      parent.convertToNodeSpaceAR(_point.set(ui.x, ui.y, 0), _point);
-      root.setPosition(_point.x - this._grabX, _point.y - this._grabY, 0);
-      this._clampChip(root);
-    });
-    root.on(Node.EventType.TOUCH_END, (event: EventTouch) => {
-      _finger = false;
-      _linger = true;
-      event.propagationStopped = true;
-      const dragged = this._drag;
-      this._drag = false;
-      if (!dragged) this._toggleMenu();
-    });
-    root.on(Node.EventType.TOUCH_CANCEL, (event: EventTouch) => {
-      _finger = false;
-      _linger = true;
-      event.propagationStopped = true;
-      this._drag = false;
-    });
-  }
-
-  private _clampChip(root: Node): void {
-    const parent = root.parent?.getComponent(UITransform);
-    const self = root.getComponent(UITransform);
-    if (!parent || !self) return;
-    const minX = -parent.width * 0.5 + self.width * self.anchorX;
-    const maxX = parent.width * 0.5 - self.width * (1 - self.anchorX);
-    const minY = -parent.height * 0.5 + self.height * self.anchorY;
-    const maxY = parent.height * 0.5 - self.height * (1 - self.anchorY);
-    const x = Math.min(maxX, Math.max(minX, root.position.x));
-    const y = Math.min(maxY, Math.max(minY, root.position.y));
-    if (x !== root.position.x || y !== root.position.y) root.setPosition(x, y, 0);
-  }
 
   private _toggleMenu = (): void => {
     this._menuOpen = !this._menuOpen;
@@ -296,62 +301,52 @@ export class TankWalkGM extends Component {
     this._paint();
   };
 
+  private _toggleBase = (): void => {
+    const scene = this.node.scene;
+    if (scene) setBaseEffects(scene, !baseEffectsOn());
+    this._paint();
+  };
+
   private _paint(): void {
-    if (this._lab) this._lab.color = this._menuOpen ? _inkOn : _inkOff;
-    if (this._chip) {
-      paintPlate(
-        this._chip,
-        CHIP_W,
-        CHIP_H,
-        14,
-        this._menuOpen ? _rowInkOn : _chipInk,
-        this._menuOpen ? _rowEdgeOn : _chipEdge,
-      );
-    }
-    if (this._walkLab) {
-      this._walkLab.string = this._on ? '开' : '关';
-      this._walkLab.color = this._on ? _inkOn : _inkOff;
-    }
-    if (this._walkBg) {
-      paintPlate(this._walkBg, ROW_W, ROW_H, 18, this._on ? _rowInkOn : _rowInk, this._on ? _rowEdgeOn : _rowEdge);
-    }
-    if (this._spawnLab) {
-      const on = monsterSpawning();
-      this._spawnLab.string = on ? '开' : '关';
-      this._spawnLab.color = on ? _inkOn : _inkOff;
-    }
-    if (this._spawnBg) {
-      const on = monsterSpawning();
-      paintPlate(this._spawnBg, ROW_W, ROW_H, 18, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge);
+    this._paintToggle(this._walkBg, this._walkLab, this._walkPill, this._on);
+    this._paintToggle(this._spawnBg, this._spawnLab, this._spawnPill, monsterSpawning());
+    this._paintToggle(this._baseBg, this._baseLab, this._basePill, baseEffectsOn());
+    if (this._pickBg) paintPlate(this._pickBg, INNER_W, ROW_H, ROW_RADIUS, _rowInk, _rowEdge, false);
+    if (this._pickPill) paintPill(this._pickPill, ROW_PILL_W, ROW_PILL_H, _pillAct, _pillRimOn);
+    if (this._pickLab) {
+      this._pickLab.string = '显示';
+      this._pickLab.color = _pillActText;
     }
     for (let i = 0; i < this._plants.length; i++) {
       const row = this._plants[i];
       const on = _plantOn.has(row.id);
-      row.lab.string = on ? '开' : '关';
-      row.lab.color = on ? _inkOn : _inkOff;
-      paintPlate(row.bg, PLANT_W, PLANT_H, 14, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge);
+      if (row.lab) {
+        row.lab.string = on ? '开' : '关';
+        row.lab.color = on ? _pillOnText : _pillOffText;
+      }
+      paintPlate(row.bg, row.w, PLANT_H, CHIP_RADIUS, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge, false);
+      paintPill(row.pill, CHIP_PILL_W, CHIP_PILL_H, on ? _pillOn : _pillOff, on ? _pillRimOn : _pillRimOff);
     }
+    for (let i = 0; i < this._groups.length; i++) {
+      const group = this._groups[i];
+      let on = 0;
+      for (let k = 0; k < group.ids.length; k++) if (_plantOn.has(group.ids[k])) on += 1;
+      group.count.string = `${on}/${group.ids.length}`;
+      group.count.color = on === group.ids.length ? _gold : _mutedInk;
+    }
+  }
+
+  private _paintToggle(bg: Node | null, lab: Label | null, pill: Node | null, on: boolean): void {
+    if (lab) {
+      lab.string = on ? '开' : '关';
+      lab.color = on ? _pillOnText : _pillOffText;
+    }
+    if (bg) paintPlate(bg, INNER_W, ROW_H, ROW_RADIUS, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge, on);
+    if (pill) paintPill(pill, ROW_PILL_W, ROW_PILL_H, on ? _pillOn : _pillOff, on ? _pillRimOn : _pillRimOff);
   }
 
   private _mount(canvas: Node): void {
     const layer = canvas.layer;
-    const root = new Node('tank-walk-gm');
-    root.layer = layer;
-    canvas.addChild(root);
-    root.addComponent(UITransform).setContentSize(CHIP_W, CHIP_H);
-    const widget = root.addComponent(Widget);
-    widget.isAlignTop = true;
-    widget.isAlignRight = true;
-    widget.top = 48;
-    widget.right = 28;
-    widget.alignMode = Widget.AlignMode.ON_WINDOW_RESIZE;
-    widget.updateAlignment();
-    this._root = root;
-    this._chip = plateNode(root, layer, 'bg', CHIP_W, CHIP_H, 14, _chipInk, _chipEdge);
-    this._lab = textNode(root, layer, 'txt', 'GM', CHIP_W, CHIP_H, 36, 44);
-    this._bindChip(root);
-    root.active = false;
-
     const panel = new Node('gm-panel');
     panel.layer = layer;
     canvas.addChild(panel);
@@ -382,32 +377,105 @@ export class TankWalkGM extends Component {
     const card = new Node('gm-card');
     card.layer = layer;
     panel.addChild(card);
-    card.addComponent(UITransform).setContentSize(PANEL_W, PANEL_H);
-    card.setPosition(0, 80, 0);
+    card.addComponent(UITransform);
+    card.setPosition(0, 16, 0);
     swallow(card);
-    plateNode(card, layer, 'bg', PANEL_W, PANEL_H, 28, _cardInk, _cardEdge);
-    const title = textNode(card, layer, 'title', 'GM', 400, 64, 44, 52);
-    title.node.setPosition(0, TITLE_Y, 0);
-    title.color = _inkOn;
-
-    const walk = this._row(card, layer, 'gm-walk', '走区', WALK_Y, this._toggleWalk);
-    this._walkLab = walk.lab;
-    this._walkBg = walk.bg;
-    const spawn = this._row(card, layer, 'gm-spawn', '刷怪', SPAWN_Y, this._toggleSpawn);
-    this._spawnLab = spawn.lab;
-    this._spawnBg = spawn.bg;
-    const plantTitle = textNode(card, layer, 'plant-title', '种塔', 400, 44, 32, 40);
-    plantTitle.node.setPosition(0, PLANT_LABEL_Y, 0);
-    plantTitle.color = _inkOn;
-    const colX = [-134, 134];
-    for (let i = 0; i < PLANT_KINDS.length; i++) {
-      const spec = PLANT_KINDS[i];
-      const chip = this._plantChip(card, layer, spec.id, spec.name, colX[i % 2], PLANT_TOP - ((i / 2) | 0) * PLANT_STEP);
-      this._plants.push(chip);
-    }
-    this._closeRow(card, layer);
+    this._buildCard(card, layer);
     this._paint();
   }
+
+  /** Flow the card from the top so the close bar always sits under the last chip. */
+  private _buildCard(card: Node, layer: number): void {
+    const chips: { spec: PlantSpec; x: number; fromTop: number; w: number }[] = [];
+    const groups: { title: string; ids: PlantKind[]; fromTop: number }[] = [];
+    let cursor = 0;
+    const take = (h: number, gap: number): number => {
+      cursor += gap;
+      const fromTop = cursor + h * 0.5;
+      cursor += h;
+      return fromTop;
+    };
+
+    const headFrom = take(HEADER_H, 0);
+    const walkFrom = take(ROW_H, 8);
+    const spawnFrom = take(ROW_H, ROW_GAP);
+    const baseFrom = take(ROW_H, ROW_GAP);
+    const pickFrom = take(ROW_H, ROW_GAP);
+    const sectionFrom = take(SECTION_H, AFTER_ROWS);
+    for (let gi = 0; gi < PLANT_GROUPS.length; gi++) {
+      const group = PLANT_GROUPS[gi];
+      const titleFrom = take(GROUP_TITLE_H, gi === 0 ? AFTER_SECTION : GROUP_GAP);
+      const ids: PlantKind[] = [];
+      for (let i = 0; i < group.items.length; i++) ids.push(group.items[i].id);
+      groups.push({ title: group.title, ids, fromTop: titleFrom });
+      const cols = group.cols;
+      const chipW = (INNER_W - CHIP_GAP_X * (cols - 1)) / cols;
+      let rowFrom = 0;
+      for (let i = 0; i < group.items.length; i++) {
+        const col = i % cols;
+        const row = (i / cols) | 0;
+        if (col === 0) rowFrom = take(PLANT_H, row === 0 ? CHIP_TITLE_GAP : CHIP_GAP_Y);
+        const x = -INNER_W * 0.5 + chipW * 0.5 + col * (chipW + CHIP_GAP_X);
+        chips.push({ spec: group.items[i], x, fromTop: rowFrom, w: chipW });
+      }
+    }
+    const closeFrom = take(CLOSE_H, CLOSE_GAP);
+    const panelH = PAD_TOP + cursor + PAD_BOT;
+    const yOf = (fromTop: number): number => panelH * 0.5 - PAD_TOP - fromTop;
+
+    card.getComponent(UITransform)?.setContentSize(PANEL_W, panelH);
+    const shadow = new Node('shadow');
+    shadow.layer = layer;
+    card.addChild(shadow);
+    shadow.setPosition(0, -12, 0);
+    shadow.addComponent(UITransform).setContentSize(PANEL_W, panelH);
+    paintShadow(shadow, PANEL_W, panelH);
+    const bg = new Node('bg');
+    bg.layer = layer;
+    card.addChild(bg);
+    bg.addComponent(UITransform).setContentSize(PANEL_W, panelH);
+    paintCard(bg, PANEL_W, panelH);
+
+    const headY = yOf(headFrom);
+    const title = textNode(card, layer, 'title', 'GM', 220, 56, 46, 54);
+    title.node.setPosition(0, headY + 14, 0);
+    title.color = _gold;
+    title.spacingX = 8;
+    ornament(card, layer, headY - 28);
+
+    const walk = this._row(card, layer, 'gm-walk', '走区', yOf(walkFrom), this._toggleWalk);
+    this._walkLab = walk.lab;
+    this._walkBg = walk.bg;
+    this._walkPill = walk.pill;
+    const spawn = this._row(card, layer, 'gm-spawn', '开始刷怪', yOf(spawnFrom), this._toggleSpawn);
+    this._spawnLab = spawn.lab;
+    this._spawnBg = spawn.bg;
+    this._spawnPill = spawn.pill;
+    const base = this._row(card, layer, 'gm-base', '显示基座特效', yOf(baseFrom), this._toggleBase);
+    this._baseLab = base.lab;
+    this._baseBg = base.bg;
+    this._basePill = base.pill;
+    const pick = this._row(card, layer, 'gm-pick', '3选1', yOf(pickFrom), this._showPick);
+    this._pickLab = pick.lab;
+    this._pickBg = pick.bg;
+    this._pickPill = pick.pill;
+    ruleTitle(card, layer, 'plant-title', '种塔', yOf(sectionFrom));
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      const count = groupTitle(card, layer, `plant-group-${i}`, group.title, yOf(group.fromTop));
+      this._groups.push({ ids: group.ids, count });
+    }
+    for (let i = 0; i < chips.length; i++) {
+      const chip = chips[i];
+      this._plants.push(this._plantChip(card, layer, chip.spec, chip.x, yOf(chip.fromTop), chip.w));
+    }
+    this._closeRow(card, layer, yOf(closeFrom));
+  }
+
+  private _showPick = (): void => {
+    if (this._menuOpen) this._toggleMenu();
+    showAbilityPick();
+  };
 
   private _togglePlant(id: PlantKind): void {
     if (_plantOn.has(id)) _plantOn.delete(id);
@@ -415,20 +483,35 @@ export class TankWalkGM extends Component {
     this._paint();
   }
 
-  private _plantChip(card: Node, layer: number, id: PlantKind, title: string, x: number, y: number): { id: PlantKind; lab: Label; bg: Node } {
-    const node = new Node(`gm-plant-${id}`);
+  private _plantChip(
+    card: Node,
+    layer: number,
+    spec: PlantSpec,
+    x: number,
+    y: number,
+    w: number,
+  ): { id: PlantKind; lab: Label; bg: Node; pill: Node; w: number } {
+    const node = new Node(`gm-plant-${spec.id}`);
     node.layer = layer;
     card.addChild(node);
-    node.addComponent(UITransform).setContentSize(PLANT_W, PLANT_H);
+    node.addComponent(UITransform).setContentSize(w, PLANT_H);
     node.setPosition(x, y, 0);
-    const bg = plateNode(node, layer, 'bg', PLANT_W, PLANT_H, 14, _rowInk, _rowEdge);
-    const caption = textNode(node, layer, 'name', title, 160, PLANT_H, 24, 30);
-    caption.node.setPosition(-34, 0, 0);
-    caption.color = _inkOff;
-    const lab = textNode(node, layer, 'state', '', 56, PLANT_H, 24, 30);
-    lab.node.setPosition(92, 0, 0);
-    bindTap(node, () => this._togglePlant(id));
-    return { id, lab, bg };
+    const bg = plateNode(node, layer, 'bg', w, PLANT_H, CHIP_RADIUS, _rowInk, _rowEdge, false);
+    const textW = w - TEXT_INSET - PILL_INSET - CHIP_PILL_W - 8;
+    const textX = -w * 0.5 + TEXT_INSET + textW * 0.5;
+    const tag = textNode(node, layer, 'tag', spec.tag, textW, 20, 15, 18, { bold: false });
+    tag.horizontalAlign = Label.HorizontalAlign.LEFT;
+    tag.node.setPosition(textX, 17, 0);
+    tag.color = _mutedInk;
+    const caption = textNode(node, layer, 'name', spec.name, textW, 30, 24, 28);
+    caption.horizontalAlign = Label.HorizontalAlign.LEFT;
+    caption.node.setPosition(textX, -15, 0);
+    caption.color = _labelInk;
+    const pill = makePill(node, layer, CHIP_PILL_W, CHIP_PILL_H);
+    pill.setPosition(w * 0.5 - PILL_INSET - CHIP_PILL_W * 0.5, 0, 0);
+    const lab = textNode(pill, layer, 'state', '', CHIP_PILL_W, CHIP_PILL_H, 20, 24);
+    bindTap(node, () => this._togglePlant(spec.id));
+    return { id: spec.id, lab, bg, pill, w };
   }
 
   private _row(
@@ -438,31 +521,34 @@ export class TankWalkGM extends Component {
     title: string,
     y: number,
     onTap: () => void,
-  ): { lab: Label; bg: Node } {
+  ): { lab: Label; bg: Node; pill: Node } {
     const node = new Node(name);
     node.layer = layer;
     card.addChild(node);
-    node.addComponent(UITransform).setContentSize(ROW_W, ROW_H);
+    node.addComponent(UITransform).setContentSize(INNER_W, ROW_H);
     node.setPosition(0, y, 0);
-    const bg = plateNode(node, layer, 'bg', ROW_W, ROW_H, 18, _rowInk, _rowEdge);
-    const caption = textNode(node, layer, 'name', title, 240, ROW_H, 36, 44);
-    caption.node.setPosition(-110, 0, 0);
-    caption.color = _inkOff;
-    const lab = textNode(node, layer, 'state', '', 160, ROW_H, 36, 44);
-    lab.node.setPosition(150, 0, 0);
+    const bg = plateNode(node, layer, 'bg', INNER_W, ROW_H, ROW_RADIUS, _rowInk, _rowEdge, false);
+    const labelW = INNER_W - TEXT_INSET - PILL_INSET - ROW_PILL_W - 12;
+    const caption = textNode(node, layer, 'name', title, labelW, ROW_H, 30, 36);
+    caption.horizontalAlign = Label.HorizontalAlign.LEFT;
+    caption.node.setPosition(-INNER_W * 0.5 + TEXT_INSET + labelW * 0.5, 0, 0);
+    caption.color = _labelInk;
+    const pill = makePill(node, layer, ROW_PILL_W, ROW_PILL_H);
+    pill.setPosition(INNER_W * 0.5 - PILL_INSET - ROW_PILL_W * 0.5, 0, 0);
+    const lab = textNode(pill, layer, 'state', '', ROW_PILL_W, ROW_PILL_H, 22, 26);
     bindTap(node, onTap);
-    return { lab, bg };
+    return { lab, bg, pill };
   }
 
-  private _closeRow(card: Node, layer: number): void {
+  private _closeRow(card: Node, layer: number, y: number): void {
     const node = new Node('gm-close');
     node.layer = layer;
     card.addChild(node);
-    node.addComponent(UITransform).setContentSize(220, 76);
-    node.setPosition(0, CLOSE_Y, 0);
-    plateNode(node, layer, 'bg', 220, 76, 16, _closeInk, _closeEdge);
-    const lab = textNode(node, layer, 'txt', '关闭', 220, 76, 32, 40);
-    lab.color = _inkOff;
+    node.addComponent(UITransform).setContentSize(INNER_W, CLOSE_H);
+    node.setPosition(0, y, 0);
+    plateNode(node, layer, 'bg', INNER_W, CLOSE_H, 18, _closeInk, _closeEdge, false);
+    const lab = textNode(node, layer, 'txt', '关闭', INNER_W, CLOSE_H, 30, 36);
+    lab.color = _closeText;
     bindTap(node, this._toggleMenu);
   }
 
@@ -545,6 +631,11 @@ export class TankWalkGM extends Component {
   }
 }
 
+type TextOpt = {
+  bold?: boolean;
+  outline?: number;
+};
+
 function plateNode(
   parent: Node,
   layer: number,
@@ -554,25 +645,163 @@ function plateNode(
   radius: number,
   fill: Color,
   edge: Color,
+  accent: boolean,
 ): Node {
   const node = new Node(name);
   node.layer = layer;
   parent.addChild(node);
   node.addComponent(UITransform).setContentSize(w, h);
-  paintPlate(node, w, h, radius, fill, edge);
+  paintPlate(node, w, h, radius, fill, edge, accent);
   return node;
 }
 
-function paintPlate(node: Node, w: number, h: number, radius: number, fill: Color, edge: Color): void {
+function paintPlate(node: Node, w: number, h: number, radius: number, fill: Color, edge: Color, accent: boolean): void {
   const g = node.getComponent(Graphics) ?? node.addComponent(Graphics);
   g.clear();
+  g.lineJoin = Graphics.LineJoin.ROUND;
+  g.lineCap = Graphics.LineCap.ROUND;
   g.fillColor = fill;
   g.roundRect(-w * 0.5, -h * 0.5, w, h, radius);
   g.fill();
-  g.lineWidth = 4;
+  if (accent) {
+    const bar = h - 36;
+    g.fillColor = _accent;
+    g.roundRect(-w * 0.5 + 8, -bar * 0.5, 4, bar, 2);
+    g.fill();
+  }
+  const inset = 3;
+  g.lineWidth = 2;
+  g.strokeColor = accent ? _plateInnerOn : _plateInner;
+  g.roundRect(-w * 0.5 + inset, -h * 0.5 + inset, w - inset * 2, h - inset * 2, Math.max(4, radius - 3));
+  g.stroke();
+  g.lineWidth = 2.5;
   g.strokeColor = edge;
   g.roundRect(-w * 0.5, -h * 0.5, w, h, radius);
   g.stroke();
+}
+
+function paintCard(node: Node, w: number, h: number): void {
+  const g = node.getComponent(Graphics) ?? node.addComponent(Graphics);
+  g.clear();
+  g.lineJoin = Graphics.LineJoin.ROUND;
+  const r = 30;
+  g.fillColor = _cardInk;
+  g.roundRect(-w * 0.5, -h * 0.5, w, h, r);
+  g.fill();
+  g.fillColor = _cardSheen;
+  g.roundRect(-w * 0.5 + 16, h * 0.5 - 78, w - 32, 52, 16);
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeColor = _cardInner;
+  g.roundRect(-w * 0.5 + 8, -h * 0.5 + 8, w - 16, h - 16, 22);
+  g.stroke();
+  g.lineWidth = 3;
+  g.strokeColor = _cardEdge;
+  g.roundRect(-w * 0.5, -h * 0.5, w, h, r);
+  g.stroke();
+}
+
+function paintShadow(node: Node, w: number, h: number): void {
+  const g = node.getComponent(Graphics) ?? node.addComponent(Graphics);
+  g.clear();
+  g.fillColor = _shadowInk;
+  g.roundRect(-w * 0.5 + 10, -h * 0.5 - 8, w - 20, h, 30);
+  g.fill();
+}
+
+function makePill(parent: Node, layer: number, w: number, h: number): Node {
+  const node = new Node('pill');
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(w, h);
+  paintPill(node, w, h, _pillOff, _pillRimOff);
+  return node;
+}
+
+function paintPill(node: Node, w: number, h: number, fill: Color, rim: Color): void {
+  const g = node.getComponent(Graphics) ?? node.addComponent(Graphics);
+  g.clear();
+  const r = h * 0.5;
+  g.fillColor = fill;
+  g.roundRect(-w * 0.5, -h * 0.5, w, h, r);
+  g.fill();
+  g.lineWidth = 2;
+  g.strokeColor = rim;
+  g.roundRect(-w * 0.5 + 1.5, -h * 0.5 + 1.5, w - 3, h - 3, Math.max(2, r - 1.5));
+  g.stroke();
+}
+
+function ornament(parent: Node, layer: number, y: number): void {
+  const node = new Node('ornament');
+  node.layer = layer;
+  parent.addChild(node);
+  node.setPosition(0, y, 0);
+  node.addComponent(UITransform).setContentSize(280, 16);
+  const g = node.addComponent(Graphics);
+  g.lineWidth = 2;
+  g.lineCap = Graphics.LineCap.ROUND;
+  g.strokeColor = _goldDim;
+  g.moveTo(-128, 0);
+  g.lineTo(-14, 0);
+  g.stroke();
+  g.moveTo(14, 0);
+  g.lineTo(128, 0);
+  g.stroke();
+  g.fillColor = _gold;
+  g.moveTo(0, 5);
+  g.lineTo(5, 0);
+  g.lineTo(0, -5);
+  g.lineTo(-5, 0);
+  g.close();
+  g.fill();
+}
+
+function ruleTitle(parent: Node, layer: number, name: string, text: string, y: number): void {
+  const node = new Node(name);
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(INNER_W, SECTION_H);
+  node.setPosition(0, y, 0);
+  const g = node.addComponent(Graphics);
+  g.lineWidth = 1.5;
+  g.lineCap = Graphics.LineCap.ROUND;
+  g.strokeColor = _goldDim;
+  g.moveTo(-INNER_W * 0.5, 0);
+  g.lineTo(-52, 0);
+  g.stroke();
+  g.moveTo(52, 0);
+  g.lineTo(INNER_W * 0.5, 0);
+  g.stroke();
+  const lab = textNode(node, layer, 'txt', text, 120, SECTION_H, 28, 34);
+  lab.color = _gold;
+}
+
+function groupTitle(parent: Node, layer: number, name: string, text: string, y: number): Label {
+  const node = new Node(name);
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(INNER_W, GROUP_TITLE_H);
+  node.setPosition(0, y, 0);
+  const mark = new Node('mark');
+  mark.layer = layer;
+  node.addChild(mark);
+  mark.setPosition(-INNER_W * 0.5 + 10, 0, 0);
+  mark.addComponent(UITransform).setContentSize(4, 16);
+  const g = mark.addComponent(Graphics);
+  g.fillColor = _gold;
+  g.roundRect(-2, -8, 4, 16, 2);
+  g.fill();
+  const boxW = INNER_W - TEXT_INSET - 88;
+  const lab = textNode(node, layer, 'txt', text, boxW, GROUP_TITLE_H, 22, 28);
+  lab.horizontalAlign = Label.HorizontalAlign.LEFT;
+  lab.node.setPosition(-INNER_W * 0.5 + TEXT_INSET + boxW * 0.5, 0, 0);
+  lab.color = _goldText;
+  const countW = 72;
+  const count = textNode(node, layer, 'count', '', countW, GROUP_TITLE_H, 18, 24, { bold: false });
+  count.horizontalAlign = Label.HorizontalAlign.RIGHT;
+  count.node.setPosition(INNER_W * 0.5 - PILL_INSET - countW * 0.5, 0, 0);
+  count.color = _mutedInk;
+  return count;
 }
 
 function textNode(
@@ -584,26 +813,32 @@ function textNode(
   h: number,
   size: number,
   line: number,
+  opt?: TextOpt,
 ): Label {
   const node = new Node(name);
   node.layer = layer;
   parent.addChild(node);
   node.addComponent(UITransform).setContentSize(w, h);
-  return stampLabel(node, text, size, line);
+  return stampLabel(node, text, size, line, opt);
 }
 
-function stampLabel(node: Node, text: string, size: number, line: number): Label {
+function stampLabel(node: Node, text: string, size: number, line: number, opt?: TextOpt): Label {
+  const outline = opt?.outline ?? 0;
   const lab = node.addComponent(Label);
   lab.string = text;
   lab.useSystemFont = true;
   lab.fontFamily = 'Microsoft YaHei';
-  lab.isBold = true;
+  lab.isBold = opt?.bold !== false;
   lab.fontSize = size;
   lab.lineHeight = line;
-  lab.color = _inkOff;
-  lab.enableOutline = true;
-  lab.outlineColor = _edge;
-  lab.outlineWidth = 4;
+  lab.color = _labelInk;
+  lab.overflow = Label.Overflow.SHRINK;
+  lab.enableWrapText = false;
+  lab.enableOutline = outline > 0;
+  if (outline > 0) {
+    lab.outlineColor = _edge;
+    lab.outlineWidth = outline;
+  }
   lab.horizontalAlign = Label.HorizontalAlign.CENTER;
   lab.verticalAlign = Label.VerticalAlign.CENTER;
   return lab;

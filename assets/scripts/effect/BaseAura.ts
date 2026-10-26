@@ -47,6 +47,17 @@ const _matWait: MeshRenderer[] = [];
 let _prefab: Prefab | null = null;
 let _prefabLoading = false;
 const _sealed = new Set<Node>();
+/** GM switch. Empty pads stay plain until this is on. */
+let _show = false;
+
+/** True while the GM wants the empty-pad crystal and column. */
+export function baseEffectsOn(): boolean {
+  return _show;
+}
+
+export function setBaseEffectsFlag(on: boolean): void {
+  _show = on;
+}
 
 type AuraJob = { slot: Node; pos: Vec3; diameter: number; height: number };
 const _jobs: AuraJob[] = [];
@@ -103,7 +114,7 @@ export function sealBaseAura(slot: Node): void {
  * Drops the base-aura prefab on a slot-face pad, sized to that pad's stone disc.
  */
 export function addBaseAura(slot: Node): void {
-  if (!slot.isValid || _sealed.has(slot) || slot.getChildByName('BaseAura')) return;
+  if (!_show || !slot.isValid || _sealed.has(slot) || slot.getChildByName('BaseAura')) return;
   const face = slot.getChildByName('Face');
   if (!face) return;
   const center = padCenter(face);
@@ -146,6 +157,7 @@ function flushAuras(): void {
     aura.setWorldPosition(job.pos);
     aura.setWorldRotation(0, 0, 0, 1);
     aura.setWorldScale(job.diameter, job.height, job.diameter);
+    aura.active = _show;
   }
 }
 

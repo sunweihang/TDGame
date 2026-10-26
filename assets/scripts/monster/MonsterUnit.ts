@@ -1,9 +1,10 @@
 import { _decorator, AnimationClip, Component, Node, SkeletalAnimation, Vec3 } from 'cc';
 import { VertexAnimPlayer } from '../anim/VertexAnim.ts';
 import { playBloodSpray } from '../effect/BloodSpray.ts';
+import { attachIceShell, clearIceShell } from '../effect/IceShell.ts';
 import { dropKillLoot } from '../effect/KillLoot.ts';
 import { showDmgFont, type Ink } from '../effect/DmgFont.ts';
-import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar } from '../effect/HpBar.ts';
+import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar, type BuffMark } from '../effect/HpBar.ts';
 import { hurtGate, pastWall } from '../effect/WallFlash.ts';
 import { easeSkirt, skirtPlan } from './MonsterSkirt.ts';
 
@@ -23,6 +24,10 @@ const CRIT_MUL = 2;
 const HP_BODY = 0.74;
 const HP_SCALE = HP_BODY * 3;
 const HP_LIFT = 0.45 * HP_BODY;
+/** Scorch ticks every 0.16 s. The mark stays up across those ticks, then drops. */
+const FLAME_HOLD = 0.42;
+/** How long a frozen body stays encased after the last ice hit. */
+const ICE_HOLD = 3.2;
 /** Opening hit, while the body is still in front of the hull. */
 const PLOW_BURST = 680;
 /** The frame the treads pull the body under. */
@@ -66,6 +71,11 @@ export class MonsterUnit extends Component {
   private _into = 0;
   private _hp: HpBar | null = null;
   private _cam: Node | null = null;
+  /** Seconds left on the flame mark. Each scorch refreshes it. */
+  private _flame = 0;
+  /** Seconds left inside the ice block. Zero means the body can walk. */
+  private _ice = 0;
+  private readonly _marks: BuffMark[] = [];
   private _released = false;
   /** Lateral slide off the road. The route keeps the along-track position. */
   private _ox = 0;
@@ -105,6 +115,11 @@ export class MonsterUnit extends Component {
 
   get threat(): boolean {
     return this._phase !== 'dead' && this.hp > 0;
+  }
+
+  /** Encased in the ice block. The body stays where it is until this drops. */
+  get frozen(): boolean {
+    return this._ice > 0 && this.threat;
   }
 
   get hitRadius(): number {
@@ -183,6 +198,21 @@ export class MonsterUnit extends Component {
     if (!this.threat) this._stayFlat = true;
   }
 
+  /** Push along a flat direction. The coast drag brings the body back onto the lane. */
+  shove(nx: number, nz: number, speed: number): void {
+    if (!this.threat || !this.node?.isValid) return;
+    const len = Math.hypot(nx, nz);
+    if (len < 1e-4 || speed <= 0) return;
+    const kick = speed / this.bulk;
+    this._vx += (nx / len) * kick;
+    this._vz += (nz / len) * kick;
+    const v = Math.hypot(this._vx, this._vz);
+    if (v > 14) {
+      this._vx *= 14 / v;
+      this._vz *= 14 / v;
+    }
+  }
+
   damage(amount: number, rollCrit = true, ink: Ink = 'plain'): void {
     if (!this.threat) return;
     const crit = rollCrit && Math.random() < CRIT_CHANCE;
@@ -190,7 +220,9 @@ export class MonsterUnit extends Component {
     this.hp -= dealt;
     showDmgFont(this.node, dealt, crit ? 'crit' : 'hit', ink);
     const scene = this.node.scene;
-    if (scene) {
+    if (ink === 'flame') {
+      this._flame = FLAME_HOLD;
+    } else if (ink !== 'frost' && scene) {
       const p = this.node.worldPosition;
       const lift = (this._grind || this._flat > 0.45 ? 0.75 : 2.1) * this.size;
       _spray.set(p.x, p.y + lift, p.z);
@@ -198,6 +230,25 @@ export class MonsterUnit extends Component {
     }
     if (this.hp > 0) return;
     this._die();
+  }
+
+  /**
+   * Ice-chunk hit. The roll encases a living body and stops it.
+   * A body already frozen stays there. The timer starts over, and the ice does not hit again.
+   */
+  chill(amount: number, chance: number): void {
+    if (!this.threat || !this.node?.isValid) return;
+    if (this._ice > 0) {
+      this._ice = ICE_HOLD;
+      this._paceAnim(0);
+      attachIceShell(this.node, this.size);
+      return;
+    }
+    this.damage(amount, true, 'frost');
+    if (!this.threat || !this.node?.isValid || Math.random() >= chance) return;
+    this._ice = ICE_HOLD;
+    this._paceAnim(0);
+    attachIceShell(this.node, this.size);
   }
 
   /** Crown marker. Monster 30000 is 4 m tall; the pop reads this point. */
@@ -246,6 +297,16 @@ export class MonsterUnit extends Component {
   }
 
   lateUpdate(dt: number): void {
+    if (this._flame > 0) this._flame -= dt;
+    if (this._ice > 0) {
+      this._ice -= dt;
+      if (this._ice > 0) this._paceAnim(0);
+      else {
+        this._ice = 0;
+        this._paceAnim(1);
+        if (this.node?.isValid) clearIceShell(this.node, false);
+      }
+    }
     if (this._plowCd > 0) this._plowCd -= dt;
     if (this._phase !== 'dead' && !this._plowHit && this._plowGap <= 0) this._coast(dt);
     this._pose(dt);
@@ -256,9 +317,10 @@ export class MonsterUnit extends Component {
       return;
     }
     const route = this._route;
-    if (route && this._seg < route.length - 1) this._along(dt);
-    else if (route) this._leaveAtWall();
-    if (this._phase !== 'dead') this._guardWall();
+    const walking = this._ice <= 0;
+    if (walking && route && this._seg < route.length - 1) this._along(dt);
+    else if (walking && route) this._leaveAtWall();
+    if (this._phase !== 'dead' && walking) this._guardWall();
     this._endPlow(dt);
     this._syncHp();
   }
@@ -280,6 +342,9 @@ export class MonsterUnit extends Component {
       _hpAt.y += 4.2 * Math.abs(this.node.worldScale.y);
     }
     this._hp.setRatio(this.hp, this.maxHp);
+    this._marks.length = 0;
+    if (this._flame > 0 && this._phase !== 'dead') this._marks.push('flame');
+    this._hp.setMarks(this._marks);
     if (!this._cam?.isValid) this._cam = this.node.scene?.getChildByName('Main Camera') ?? null;
     this._hp.followWorld(_hpAt, this._cam, true, HP_LIFT, 0.25);
   }
@@ -490,7 +555,7 @@ export class MonsterUnit extends Component {
         this._vz = 0;
       }
     }
-    if (this._skirting) return;
+    if (this._ice > 0 || this._skirting) return;
     const flying = this._vx * this._vx + this._vz * this._vz > 0.8;
     const home = 1 - Math.exp((flying ? -0.7 : -3.4) * dt);
     this._ox -= this._ox * home;
@@ -713,6 +778,9 @@ export class MonsterUnit extends Component {
   }
 
   private _die(): void {
+    const iced = this._ice > 0;
+    this._ice = 0;
+    if (iced && this.node?.isValid) clearIceShell(this.node, true);
     this._phase = 'dead';
     this.hp = 0;
     this._vx = 0;
@@ -726,6 +794,19 @@ export class MonsterUnit extends Component {
       if (mover?.isValid) mover.destroy();
       else if (this.node?.isValid) this.node.destroy();
     }, 1.35);
+  }
+
+  private _paceAnim(speed: number): void {
+    const vat = this._vat;
+    if (vat) {
+      vat.pace(speed);
+      return;
+    }
+    const anim = this._anim;
+    if (!anim) return;
+    const name = this._phase === 'dead' ? this._dead : this._run;
+    const state = name ? anim.getState(name) : null;
+    if (state) state.speed = speed;
   }
 
   private _play(name: string, wrap: AnimationClip.WrapMode): void {

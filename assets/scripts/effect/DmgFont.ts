@@ -8,7 +8,9 @@ import { Camera, Color, Label, Layers, Node, Sprite, SpriteFrame, UIOpacity, UIT
  * The screen keeps a short list. A hit past that list fades the oldest glyph.
  * A glyph pops on the crown, then drifts up slowly and stays readable.
  * Plain hits are warm white. A machine-gun hit is orange-yellow. A flame hit is red.
+ * An ice hit is cyan. A lightning hit is purple.
  * Those hits stay on the system font. Only a crit swaps in the weapon's digit sheet.
+ * A weapon crit waits until that sheet is loaded, so the first frame is the texture.
  * The sheet is the face of the number. Crits do not draw a badge behind it.
  * Offsets are the 720 canvas, then ×1.5 onto this 1080 canvas.
  * This camera shows about 80 meters top to bottom, so the rise stays a
@@ -22,11 +24,11 @@ const MAX_PER_FRAME = 18;
 /** Glyphs kept on one body. A newer hit fades the oldest on that body. */
 const MAX_PER_UNIT = 4;
 const FONT_HIT = 20;
-const FONT_CRIT = 30;
+const FONT_CRIT = 20;
 /** Crit digits on this 1080 canvas, before the pop. */
-const ART_CRIT = 86;
+const ART_CRIT = 38;
 /** 720-canvas step that clears one weapon digit after the canvas scale. */
-const ART_STACK = 54;
+const ART_STACK = 24;
 const ART_CELLS = 6;
 const DUR_HIT = 1.4;
 const DUR_CRIT = 1.75;
@@ -50,11 +52,15 @@ const INK_PLAYER = new Color(248, 95, 95, 255);
 const INK_GUN = new Color(255, 186, 42, 255);
 /** Flamethrower body color. Red. */
 const INK_FLAME = new Color(255, 42, 36, 255);
+/** Ice beacon body color. Cyan. */
+const INK_FROST = new Color(80, 210, 255, 255);
+/** Lightning body color. Purple. */
+const INK_BOLT = new Color(186, 72, 255, 255);
 const EDGE = new Color(0, 0, 0, 255);
 
 export type Kind = 'hit' | 'crit' | 'player';
 /** Which weapon landed the hit. The bitmap sheet is only for a crit. */
-export type Ink = 'plain' | 'gun' | 'flame';
+export type Ink = 'plain' | 'gun' | 'flame' | 'frost' | 'bolt';
 
 type Floater = {
   node: Node;
@@ -87,7 +93,7 @@ type Pending = {
   ink: Ink;
 };
 
-type ArtInk = 'gun' | 'flame';
+type ArtInk = 'gun' | 'flame' | 'frost' | 'bolt';
 
 const _world = new Vec3();
 const _ui = new Vec3();
@@ -95,12 +101,17 @@ const _eye = new Vec3();
 const _live: Floater[] = [];
 const _pool: Floater[] = [];
 const _queue: Pending[] = [];
+/** Weapon crits held until their digit sheet can draw. */
+const _hold: Pending[] = [];
+const _artGiveUp: Record<ArtInk, boolean> = { gun: false, flame: false, frost: false, bolt: false };
 
 let _root: Node | null = null;
 let _canvas: Node | null = null;
 const _digits: Record<ArtInk, Array<SpriteFrame | null>> = {
   gun: [null, null, null, null, null, null, null, null, null, null],
   flame: [null, null, null, null, null, null, null, null, null, null],
+  frost: [null, null, null, null, null, null, null, null, null, null],
+  bolt: [null, null, null, null, null, null, null, null, null, null],
 };
 let _digitLoading = false;
 
@@ -109,6 +120,11 @@ export function mountDmgFont(canvas: Node): void {
   _live.length = 0;
   _pool.length = 0;
   _queue.length = 0;
+  _hold.length = 0;
+  _artGiveUp.gun = false;
+  _artGiveUp.flame = false;
+  _artGiveUp.frost = false;
+  _artGiveUp.bolt = false;
   _canvas = canvas;
   const root = new Node('DmgFonts');
   root.layer = Layers.Enum.UI_2D;
@@ -144,10 +160,16 @@ export function showDmgFont(target: Node, amount: number, kind: Kind, ink: Ink =
 
 export function tickDmgFont(dt: number, cam: Camera | null): void {
   if (_root?.isValid && _root.parent) _root.setSiblingIndex(_root.parent.children.length - 1);
+  releaseHold();
   let made = 0;
   while (_queue.length && made < MAX_PER_FRAME) {
     const job = _queue.shift()!;
     if (!job.node.isValid) continue;
+    if (artPending(job)) {
+      if (_hold.length >= MAX_QUEUE) _hold.shift();
+      _hold.push(job);
+      continue;
+    }
     spawn(job);
     made += 1;
   }
@@ -175,6 +197,39 @@ export function tickDmgFont(dt: number, cam: Camera | null): void {
     _pool.push(floater);
     _live.splice(i, 1);
   }
+}
+
+function isArt(ink: Ink): ink is ArtInk {
+  return ink === 'gun' || ink === 'flame' || ink === 'frost' || ink === 'bolt';
+}
+
+function sheetReady(ink: ArtInk): boolean {
+  const frames = _digits[ink];
+  for (let d = 0; d < 10; d++) if (!frames[d]) return false;
+  return true;
+}
+
+/** Weapon crits stay off screen until their digits can draw. */
+function artPending(job: Pending): boolean {
+  if (!job.crit || job.player || job.ink === 'plain') return false;
+  if (!isArt(job.ink)) return false;
+  if (_artGiveUp[job.ink]) return false;
+  return !sheetReady(job.ink);
+}
+
+function releaseHold(): void {
+  if (!_hold.length) return;
+  const ready: Pending[] = [];
+  const still: Pending[] = [];
+  for (let i = 0; i < _hold.length; i++) {
+    const job = _hold[i];
+    if (!job.node.isValid) continue;
+    if (artPending(job)) still.push(job);
+    else ready.push(job);
+  }
+  _hold.length = 0;
+  for (let i = 0; i < still.length; i++) _hold.push(still[i]);
+  for (let i = ready.length - 1; i >= 0; i--) _queue.unshift(ready[i]);
 }
 
 function resolveKind(player: boolean, crit: boolean): Kind {
@@ -207,6 +262,8 @@ function paint(floater: Floater): void {
 function labelInk(floater: Floater): Color {
   if (floater.ink === 'gun') return INK_GUN;
   if (floater.ink === 'flame') return INK_FLAME;
+  if (floater.ink === 'frost') return INK_FROST;
+  if (floater.ink === 'bolt') return INK_BOLT;
   if (floater.kind === 'crit') return INK_CRIT;
   if (floater.kind === 'player') return INK_PLAYER;
   return INK_HIT;
@@ -214,7 +271,7 @@ function labelInk(floater: Floater): Color {
 
 /** Crits draw the weapon sheet. One bitmap digit per character. */
 function layoutArt(floater: Floater): boolean {
-  if (floater.ink !== 'gun' && floater.ink !== 'flame') return false;
+  if (!isArt(floater.ink)) return false;
   const frames = _digits[floater.ink];
   const text = String(Math.max(0, Math.floor(floater.amount)));
   if (!text.length || text.length > floater.cells.length) return false;
@@ -426,7 +483,7 @@ function loadArt(): void {
 function loadDigits(attempt: number): void {
   if (_digitLoading) return;
   const missing: Array<{ ink: ArtInk; d: number }> = [];
-  const inks: ArtInk[] = ['gun', 'flame'];
+  const inks: ArtInk[] = ['gun', 'flame', 'frost', 'bolt'];
   for (let s = 0; s < inks.length; s++) {
     const ink = inks[s];
     for (let d = 0; d < 10; d++) {
@@ -451,6 +508,12 @@ function loadDigits(attempt: number): void {
       if (failed && attempt < 12) {
         setTimeout(() => loadDigits(attempt + 1), 400);
         return;
+      }
+      const inks: ArtInk[] = ['gun', 'flame', 'frost', 'bolt'];
+      for (let s = 0; s < inks.length; s++) {
+        const ink = inks[s];
+        if (sheetReady(ink)) _artGiveUp[ink] = false;
+        else if (attempt >= 12) _artGiveUp[ink] = true;
       }
       repaintArt();
     });

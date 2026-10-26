@@ -51,9 +51,22 @@ const TURRET_10012 = 'f3c62a18-9d4e-4b71-a056-10012bb10012';
 const TURRET_10005 = 'c5d18a40-6e73-4f92-a014-10005bb10005';
 const TURRET_10006 = 'a7c41e62-8b05-4d16-9e38-10006bb10006';
 const TURRET_10007 = 'd8f30b73-5c26-4a91-b048-10007bb10007';
+const TURRET_10008 = 'c8e14a20-7b63-4f91-a018-10008bb10008';
+const TURRET_10009 = 'd9f25b31-8c74-4e02-b129-10009bb10009';
+const TURRET_10013 = 'e0a36c42-9d85-4f13-c23a-10013bb10013';
+const TURRET_10014 = 'b7e20c51-4a83-4d15-9e41-10014bb10014';
+const TURRET_10015 = 'c8f31d62-5b94-4e26-af52-10015bb10015';
+const TURRET_10016 = 'd9a42e73-6ca5-4f37-b063-10016bb10016';
 
-type Kind = '10000' | '10001' | '10002' | '10004' | '10005' | '10006' | '10007' | '10010' | '10011' | '10012';
+type Kind = '10000' | '10001' | '10002' | '10004' | '10005' | '10006' | '10007' | '10008' | '10009' | '10010' | '10011' | '10012' | '10013' | '10014' | '10015' | '10016';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
+
+/** Level 1 is 30% smaller. Level 2 keeps the authored size. Level 3 is 30% larger. */
+function bodyScale(kind: Kind): number {
+  if (kind === '10005' || kind === '10008' || kind === '10010' || kind === '10014') return 0.7;
+  if (kind === '10007' || kind === '10012' || kind === '10013' || kind === '10016') return 1.3;
+  return 1;
+}
 
 /**
  * A tap on an empty base builds one turret checked in the GM list.
@@ -164,6 +177,12 @@ export class TurretPlacer extends Component {
     this._load10005(scene);
     this._load10006(scene);
     this._load10007(scene);
+    this._load10008(scene);
+    this._load10009(scene);
+    this._load10013(scene);
+    this._load10014(scene);
+    this._load10015(scene);
+    this._load10016(scene);
     this._loadPad(scene);
     mountBaseGems(scene);
   }
@@ -173,7 +192,7 @@ export class TurretPlacer extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const name = kids[i].name;
-      if (name === '10000' || name === '10001' || name === '10002' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10010' || name === '10011' || name === '10012') found.push(kids[i]);
+      if (name === '10000' || name === '10001' || name === '10002' || name === '10004' || name === '10005' || name === '10006' || name === '10007' || name === '10008' || name === '10009' || name === '10010' || name === '10011' || name === '10012' || name === '10013' || name === '10014' || name === '10015' || name === '10016') found.push(kids[i]);
     }
     return found;
   }
@@ -358,8 +377,121 @@ export class TurretPlacer extends Component {
     });
   }
 
+  private _load10008(scene: Node): void {
+    if (this._packs.has('10008')) return;
+    assetManager.loadAny({ uuid: TURRET_10008 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10008 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10008';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10008', root);
+      if (this._kind === '10008') this._makeGhost();
+    });
+  }
+
+  private _load10009(scene: Node): void {
+    if (this._packs.has('10009')) return;
+    assetManager.loadAny({ uuid: TURRET_10009 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10009 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10009';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10009', root);
+      if (this._kind === '10009') this._makeGhost();
+    });
+  }
+
+  private _load10013(scene: Node): void {
+    if (this._packs.has('10013')) return;
+    assetManager.loadAny({ uuid: TURRET_10013 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10013 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10013';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10013', root);
+      if (this._kind === '10013') this._makeGhost();
+    });
+  }
+
+  private _load10014(scene: Node): void {
+    if (this._packs.has('10014')) return;
+    assetManager.loadAny({ uuid: TURRET_10014 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10014 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10014';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10014', root);
+      if (this._kind === '10014') this._makeGhost();
+    });
+  }
+
+  private _load10015(scene: Node): void {
+    if (this._packs.has('10015')) return;
+    assetManager.loadAny({ uuid: TURRET_10015 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10015 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10015';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10015', root);
+      if (this._kind === '10015') this._makeGhost();
+    });
+  }
+
+  private _load10016(scene: Node): void {
+    if (this._packs.has('10016')) return;
+    assetManager.loadAny({ uuid: TURRET_10016 }, (err, asset) => {
+      if (!this.isValid) return;
+      if (err || !(asset instanceof Prefab)) {
+        console.error('[TurretPlacer] turret 10016 failed to load', err);
+        return;
+      }
+      const root = instantiate(asset);
+      root.name = '10016';
+      root.active = false;
+      scene.addChild(root);
+      this._silence(root);
+      this._remember('10016', root);
+      if (this._kind === '10016') this._makeGhost();
+    });
+  }
+
   private _remember(kind: Kind, template: Node): void {
+    const s = bodyScale(kind);
+    template.setScale(s, s, s);
+    const hidden = !template.active;
+    if (hidden) template.active = true;
     const measured = measureTurretXZ(template);
+    if (hidden) template.active = false;
     const pack: Pack = {
       template,
       offX: measured ? template.worldPosition.x - measured.cx : 0,

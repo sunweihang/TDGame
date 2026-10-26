@@ -221,6 +221,12 @@ export class VertexAnimPlayer extends Component {
     this._upload();
   }
 
+  /** Keep the current frame. Zero holds a frozen pose without restarting the clip. */
+  pace(speed: number): void {
+    this._speed = speed;
+    if (speed > 0 && this._clip) this._playing = true;
+  }
+
   replay(): void {
     this._time = 0;
     this._playing = true;

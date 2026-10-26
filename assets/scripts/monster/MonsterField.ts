@@ -35,9 +35,9 @@ const COATS = [
 ];
 const GATE_GAP = 4;
 
-let _spawn = true;
+let _spawn = false;
 
-/** GM switch. Already spawned monsters stay; new ones wait until this is on. */
+/** GM switch. Already spawned monsters stay; new ones wait until 开始刷怪 is on. */
 export function monsterSpawning(): boolean {
   return _spawn;
 }

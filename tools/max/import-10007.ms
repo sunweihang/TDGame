@@ -2,8 +2,8 @@
 -- X is centered, and the muzzle points -Y (Max front view).
 statusPath = @"d:\Custom\TD\temp\ft-10007\status.txt"
 statsPath = @"d:\Custom\TD\temp\ft-10007\stats.txt"
-srcPath = @"d:\Custom\TD\temp\ft-10007\tripo_convert_b9d9d3d3-c2bc-4055-8660-efb3d126d76c.fbx"
-texPath = @"d:\Custom\TD\temp\ft-10007\textures\dragon_statue_3d_model_basecolor.JPEG"
+srcPath = @"d:\Custom\TD\temp\ft-10007\tripo_convert_8c787592-c07d-41bf-9b65-c303aac51879.fbx"
+texPath = @"d:\Custom\TD\temp\ft-10007\textures\robotic_turret_3d_model_basecolor.JPEG"
 shotDir = @"d:\Custom\TD\temp\ft-10007\shots"
 maxPath = @"d:\Custom\TD\temp\ft-10007\10007.max"
 
@@ -194,7 +194,7 @@ try (
 	) catch ()
 	resetMaxFile #noPrompt
 	try (mapPaths.add @"d:\Custom\TD\temp\ft-10007\textures") catch ()
-	try (mapPaths.add @"d:\Custom\TD\temp\ft-10007\tripo_convert_b9d9d3d3-c2bc-4055-8660-efb3d126d76c.fbm") catch ()
+	try (mapPaths.add @"d:\Custom\TD\temp\ft-10007\tripo_convert_8c787592-c07d-41bf-9b65-c303aac51879.fbm") catch ()
 	try (FBXImporterSetParam "Mode" #create) catch ()
 	try (FBXImporterSetParam "Animation" false) catch ()
 	try (FBXImporterSetParam "Cameras" false) catch ()
@@ -288,6 +288,39 @@ try (
 	grab #view_left (shotDir + @"\left.png")
 	grab #view_top (shotDir + @"\top.png")
 	grab #view_back (shotDir + @"\back.png")
+
+	local zA = mesh.min.z
+	local hh = amax 0.001 (mesh.max.z - zA)
+	local bins = 48
+	for b = 1 to bins do (
+		local lo = zA + ((b - 1) * hh / bins)
+		local hiZ = zA + (b * hh / bins)
+		local n = 0
+		local acc = [0, 0, 0]
+		local r0 = 0.0
+		local minY = 1e9
+		local maxY = -1e9
+		for v = 1 to mesh.numverts do (
+			local p = getVert mesh v
+			if p.z < lo or (p.z >= hiZ and b < bins) do continue
+			n += 1
+			acc += p
+			local d0 = length [p.x, p.y, 0]
+			if d0 > r0 do r0 = d0
+			if p.y < minY do minY = p.y
+			if p.y > maxY do maxY = p.y
+		)
+		if n < 1 then (
+			note ("bin " + (b as string) + " z " + (lo as string) + " empty")
+		) else (
+			acc /= n
+			note ("bin " + (b as string) + " z " + (lo as string) + " n " + (n as string) + " r0 " + (r0 as string) + " c " + (acc as string) + " y " + (minY as string) + " " + (maxY as string))
+		)
+	)
+	local minY = mesh.min
+	local maxY = mesh.max
+	note ("spanY " + (minY.y as string) + " " + (maxY.y as string))
+
 	saveMaxFile maxPath quiet:true
 	note "saved"
 	writeLine statusPath "OK"

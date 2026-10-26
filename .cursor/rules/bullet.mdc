@@ -3,7 +3,7 @@ description: Bullet ID, prefab name, and folder split
 alwaysApply: true
 ---
 
-Bullet IDs are decimal numbers starting at 20000. The current bullet is 20000, the blue laser fired by turret 10000. The next new bullet is 20001, then 20002, and so on. Never reuse or skip an assigned ID.
+Bullet IDs are decimal numbers starting at 20000. Assigned bullets are 20000, the blue laser fired by turret 10000, 20001, the ice chunk thrown by turrets 10008, 10009, and 10013, and 20002, the purple light ball fired by turrets 10014, 10015, and 10016. The next new bullet is 20003. Never reuse or skip an assigned ID.
 
 The prefab file and its root node use the ID as the name, with no prefix. Bullets live in `assets/prefabs/bullet/`. Example: `assets/prefabs/bullet/20000.prefab`, node `20000`. Scene instances use that same name.
 
