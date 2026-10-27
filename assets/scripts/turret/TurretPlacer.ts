@@ -25,8 +25,11 @@ import { LaserPad } from '../effect/LaserPad.ts';
 import { spawnPlantBeam } from '../effect/PlantBeam.ts';
 import { paintTurretWire } from '../effect/TurretWire.ts';
 import { TURRET_10000_CELLS, BattleGrid, squareCellSize } from './BattleGrid.ts';
-import { stickHeld, stickSlid, stickTouch } from '../player/TankStick.ts';
-import { gmPlantPool, walkGmHeld } from '../player/TankWalkGM.ts';
+import { baseTurret, nextTurret } from '../game/PickRoll.ts';
+import { picking, setOrderHint } from '../game/PlaceHint.ts';
+import { releasePlantBattle, showPlantMarks, showUpgradeArrows } from '../game/PlantMarks.ts';
+import { setArmedTap, setStickSuppressed, stickHeld, stickTouch } from '../player/TankStick.ts';
+import { walkGmHeld } from '../player/TankWalkGM.ts';
 import { TurretGun, measureTurretXZ } from './TurretGun.ts';
 
 const { ccclass } = _decorator;
@@ -37,7 +40,10 @@ const _axisX = new Vec3();
 const _axisY = new Vec3();
 const _axisZ = new Vec3();
 const _hit = new Vec3();
+const _screen = new Vec3();
 const TAP_SLOP = 36;
+/** A tap this close to a base still counts when the ray misses the card. */
+const NEAR_PX = 240;
 const _ghostOk = new Color(57, 255, 20, 255);
 const _ghostBad = new Color(255, 96, 88, 255);
 const PLACE_GRID = '53837b38-4869-4666-ab51-403a8428a2c4';
@@ -60,6 +66,26 @@ const TURRET_10016 = 'd9a42e73-6ca5-4f37-b063-10016bb10016';
 
 type Kind = '10000' | '10001' | '10002' | '10004' | '10005' | '10006' | '10007' | '10008' | '10009' | '10010' | '10011' | '10012' | '10013' | '10014' | '10015' | '10016';
 type Pack = { template: Node; offX: number; offZ: number; footY: number };
+type Seat = { slot: Node; kind: Kind; turret: Node; x: number; z: number };
+type Order = 'none' | 'plant' | 'upgrade';
+
+function asKind(id: number | string): Kind | null {
+  const name = String(id);
+  if (
+    name === '10000' || name === '10001' || name === '10002' || name === '10004' ||
+    name === '10005' || name === '10006' || name === '10007' || name === '10008' ||
+    name === '10009' || name === '10010' || name === '10011' || name === '10012' ||
+    name === '10013' || name === '10014' || name === '10015' || name === '10016'
+  ) return name;
+  return null;
+}
+
+let _live: TurretPlacer | null = null;
+
+/** The placer on the live battlefield, once it has started. */
+export function livePlacer(): TurretPlacer | null {
+  return _live?.isValid ? _live : null;
+}
 
 /** Level 1 is 30% smaller. Level 2 keeps the authored size. Level 3 is 30% larger. */
 function bodyScale(kind: Kind): number {
@@ -69,9 +95,10 @@ function bodyScale(kind: Kind): number {
 }
 
 /**
- * A tap on an empty base builds one turret checked in the GM list.
+ * Planting and upgrading wait for a three-choice card.
+ * A plant card arms one turret. The next tap on an empty base builds it.
+ * An upgrade card waits for a tap on a turret that still has a next tier.
  * The floating crystal goes away, then the build hologram and digital rain play.
- * Square-grid placement remains for an armed turret.
  */
 @ccclass('TurretPlacer')
 export class TurretPlacer extends Component {
@@ -83,6 +110,9 @@ export class TurretPlacer extends Component {
   private _cam: Camera | null = null;
   private readonly _packs = new Map<Kind, Pack>();
   private _kind: Kind | null = null;
+  private _order: Order = 'none';
+  private _orderKind: Kind | null = null;
+  private readonly _seats: Seat[] = [];
   private _planting = false;
   private _suppressDrop = 0;
   private _ix = -1;
@@ -105,15 +135,19 @@ export class TurretPlacer extends Component {
   private _ignoreUntil = 0;
 
   onLoad(): void {
+    _live = this;
     input.on(Input.EventType.MOUSE_DOWN, this._onMouseDown, this);
     input.on(Input.EventType.MOUSE_MOVE, this._onMouseMove, this);
     input.on(Input.EventType.MOUSE_UP, this._onMouseUp, this);
     input.on(Input.EventType.TOUCH_START, this._onTouch, this);
     input.on(Input.EventType.TOUCH_MOVE, this._onTouch, this);
     input.on(Input.EventType.TOUCH_END, this._onTouchEnd, this);
+    setArmedTap((x, y) => this._tapSlot(x, y, true));
   }
 
   onDestroy(): void {
+    setArmedTap(null);
+    if (_live === this) _live = null;
     input.off(Input.EventType.MOUSE_DOWN, this._onMouseDown, this);
     input.off(Input.EventType.MOUSE_MOVE, this._onMouseMove, this);
     input.off(Input.EventType.MOUSE_UP, this._onMouseUp, this);
@@ -585,20 +619,20 @@ export class TurretPlacer extends Component {
   }
 
   private _onMouseDown = (event: EventMouse): void => {
-    if (loginPointerBlocked()) return;
+    if (picking() || loginPointerBlocked()) return;
     if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
     const p = event.getLocation();
     this._notePress(p.x, p.y);
   };
 
   private _onMouseMove = (event: EventMouse): void => {
-    if (stickHeld() || walkGmHeld()) return;
+    if (picking() || stickHeld() || walkGmHeld()) return;
     const p = event.getLocation();
     this._aim(p.x, p.y);
   };
 
   private _onMouseUp = (event: EventMouse): void => {
-    if (loginPointerBlocked()) return;
+    if (picking() || loginPointerBlocked()) return;
     if (event.getButton() !== EventMouse.BUTTON_LEFT) return;
     if (walkGmHeld()) return;
     const p = event.getLocation();
@@ -609,7 +643,7 @@ export class TurretPlacer extends Component {
   };
 
   private _onTouch = (event: EventTouch): void => {
-    if (loginPointerBlocked()) return;
+    if (picking() || loginPointerBlocked()) return;
     const p = event.getLocation();
     if (event.type === Input.EventType.TOUCH_START) this._notePress(p.x, p.y);
     if (walkGmHeld()) return;
@@ -619,7 +653,7 @@ export class TurretPlacer extends Component {
   };
 
   private _onTouchEnd = (event: EventTouch): void => {
-    if (loginPointerBlocked()) return;
+    if (picking() || loginPointerBlocked()) return;
     if (walkGmHeld()) return;
     const p = event.getLocation();
     if (this._tapSlot(p.x, p.y)) return;
@@ -636,24 +670,36 @@ export class TurretPlacer extends Component {
     this._dragged = false;
   }
 
-  /** A short tap on an empty base. Sliding the stick keeps driving and does not build. */
-  private _tapSlot(x: number, y: number): boolean {
+  /** A short tap finishes the armed plant or upgrade. A bare pad does nothing. */
+  private _tapSlot(x: number, y: number, force = false): boolean {
+    if (this._order === 'none') return false;
     if (Date.now() < this._ignoreUntil) return true;
-    if (this._pressed) {
+    if (force) {
+      this._pressed = false;
+      this._dragged = false;
+    } else if (this._pressed) {
       const moved = Math.hypot(x - this._pressX, y - this._pressY) > TAP_SLOP;
       this._pressed = false;
       if (moved) this._dragged = true;
     }
-    if (this._dragged || stickSlid()) return false;
+    if (this._dragged) return false;
     if (!this._grid) this._boot();
-    const hit = this._pickBase(x, y);
+    if (this._order === 'upgrade') {
+      const hit = this._pickPad(x, y, true);
+      const seat = hit ? this._seatFor(hit.node) : null;
+      if (!seat) return false;
+      this._ignoreUntil = Date.now() + 200;
+      this._upgradeSeat(seat);
+      return true;
+    }
+    const hit = this._pickPad(x, y, false);
     if (!hit) return false;
     this._ignoreUntil = Date.now() + 200;
     this._plantAt(hit.node, hit.x, hit.z);
     return true;
   }
 
-  private _pickBase(x: number, y: number): { node: Node; x: number; z: number } | null {
+  private _pickPad(x: number, y: number, occupied: boolean): { node: Node; x: number; z: number } | null {
     const cam = this._cam;
     const scene = this.node.scene;
     if (!cam || !scene) return null;
@@ -665,7 +711,10 @@ export class TurretPlacer extends Component {
     const kids = scene.children;
     for (let i = 0; i < kids.length; i++) {
       const node = kids[i];
-      if (!node.isValid || this._bases.has(node)) continue;
+      if (!node.isValid) continue;
+      if (occupied) {
+        if (!this._seatFor(node)) continue;
+      } else if (this._bases.has(node)) continue;
       if (node.name !== 'slot-face' && node.name !== 'slot') continue;
       const pad = slotPad(node);
       if (!pad) continue;
@@ -683,6 +732,39 @@ export class TurretPlacer extends Component {
       bx = pad.x;
       bz = pad.z;
     }
+    if (best) return { node: best, x: bx, z: bz };
+    return this._nearPad(cam, x, y, occupied);
+  }
+
+  /** The crystal sits above the card, so a tap there can miss the ray. Use screen distance. */
+  private _nearPad(cam: Camera, x: number, y: number, occupied: boolean): { node: Node; x: number; z: number } | null {
+    const scene = this.node.scene;
+    if (!scene) return null;
+    let best: Node | null = null;
+    let bestD = NEAR_PX * NEAR_PX;
+    let bx = 0;
+    let bz = 0;
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const node = kids[i];
+      if (!node.isValid) continue;
+      if (occupied) {
+        if (!this._seatFor(node)) continue;
+      } else if (this._bases.has(node)) continue;
+      if (node.name !== 'slot-face' && node.name !== 'slot') continue;
+      const pad = slotPad(node);
+      const face = node.getChildByName('Face');
+      if (!pad || !face?.isValid) continue;
+      const dist = screenDist(cam, face, x, y);
+      const gem = node.getChildByName('BaseGem');
+      const gemDist = gem?.active ? screenDist(cam, gem, x, y) : Infinity;
+      const d = dist < gemDist ? dist : gemDist;
+      if (d >= bestD) continue;
+      bestD = d;
+      best = node;
+      bx = pad.x;
+      bz = pad.z;
+    }
     if (!best) return null;
     return { node: best, x: bx, z: bz };
   }
@@ -696,10 +778,11 @@ export class TurretPlacer extends Component {
     root.setWorldPosition(p.x + (x - fitted.cx), footY, p.z + (z - fitted.cz));
   }
 
-  /** Drop the GM pick, or a random plantable turret, then clear the crystal and play the build effect. */
+  /** Build the level-1 turret armed by the plant card, then clear the crystal and play the build effect. */
   private _plantAt(slot: Node, x: number, z: number): void {
-    if (this._bases.has(slot)) return;
-    const kind = this._rollKind();
+    if (this._order !== 'plant' || this._bases.has(slot)) return;
+    const asked = this._orderKind;
+    const kind = asked && asKind(baseTurret(Number(asked))) === asked ? asked : null;
     const pack = kind ? this._packs.get(kind) ?? null : null;
     const gun = this._gun;
     const grid = this._grid;
@@ -725,6 +808,7 @@ export class TurretPlacer extends Component {
     }
     gun.adopt(root);
     drawAboveBase(root);
+    this._seats.push({ slot, kind, turret: root, x, z });
     const wired = this._freshGhost(pack.template);
     if (wired) {
       wired.node.active = true;
@@ -736,18 +820,154 @@ export class TurretPlacer extends Component {
     const cell = Math.max(grid?.cellX ?? 0, grid?.cellZ ?? 0, 4.2);
     spawnPlantBeam(scene, x, z, cell, cell);
     this._lastDrop = now;
+    this._clearOrder();
   }
 
-  /** One loaded turret among the boxes checked in the GM list. */
-  private _rollKind(): Kind | null {
-    const pool = gmPlantPool();
-    const ready: Kind[] = [];
-    for (let i = 0; i < pool.length; i++) {
-      const kind = pool[i];
-      if (this._packs.has(kind)) ready.push(kind);
+  /** True when at least one base is still empty. */
+  emptySlot(): boolean {
+    const scene = this.node.scene;
+    if (!scene) return false;
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const node = kids[i];
+      if (!node.isValid || this._bases.has(node)) continue;
+      if (node.name === 'slot-face' || node.name === 'slot') return true;
     }
-    if (!ready.length) return null;
-    return ready[(Math.random() * ready.length) | 0];
+    return false;
+  }
+
+  /** The prefab for this id has finished loading. */
+  turretReady(id: number): boolean {
+    const kind = asKind(id);
+    return !!kind && this._packs.has(kind);
+  }
+
+  /** Some planted turret still has a later tier, and that prefab is loaded. */
+  canUpgrade(): boolean {
+    for (let i = 0; i < this._seats.length; i++) {
+      const next = this._nextKind(this._seats[i].kind);
+      if (next && this._packs.has(next)) return true;
+    }
+    return false;
+  }
+
+  /** Arm the level-1 model of a line. Later tiers only appear through upgrade. */
+  armPlant(id: number, name: string): boolean {
+    const kind = asKind(baseTurret(id));
+    const slots = this._openSlots();
+    if (!kind || !this._packs.has(kind) || !slots.length) return false;
+    this._order = 'plant';
+    this._orderKind = kind;
+    setOrderHint(name ? `点选空底座，种下${name}` : '点选空底座种植炮塔');
+    showPlantMarks(slots);
+    setStickSuppressed(true);
+    return true;
+  }
+
+  /** A different card replaced the plant. Resume only if that plant card already held the battle. */
+  cancelPlantAim(): void {
+    if (this._order !== 'plant') return;
+    this._clearOrder();
+  }
+
+  /** Arm an upgrade. The next tap on a turret that can still climb replaces it. */
+  armUpgrade(): boolean {
+    const spots = this._upgradeSpots();
+    if (!spots.length) return false;
+    this._order = 'upgrade';
+    this._orderKind = null;
+    setOrderHint('点选要升级的炮塔');
+    showUpgradeArrows(spots);
+    setStickSuppressed(true);
+    return true;
+  }
+
+  private _clearOrder(): void {
+    this._order = 'none';
+    this._orderKind = null;
+    releasePlantBattle();
+    setOrderHint('');
+    setStickSuppressed(false);
+  }
+
+  private readonly _open: Node[] = [];
+  private readonly _spots: { slot: Node; turret: Node }[] = [];
+
+  /** Planted guns that still have a loaded later tier. */
+  private _upgradeSpots(): { slot: Node; turret: Node }[] {
+    this._spots.length = 0;
+    for (let i = 0; i < this._seats.length; i++) {
+      const seat = this._seats[i];
+      const next = this._nextKind(seat.kind);
+      if (!next || !this._packs.has(next) || !seat.turret.isValid) continue;
+      this._spots.push({ slot: seat.slot, turret: seat.turret });
+    }
+    return this._spots;
+  }
+
+  /** Empty bases the plant card can still use. */
+  private _openSlots(): Node[] {
+    this._open.length = 0;
+    const scene = this.node.scene;
+    if (!scene) return this._open;
+    const kids = scene.children;
+    for (let i = 0; i < kids.length; i++) {
+      const node = kids[i];
+      if (!node.isValid || this._bases.has(node)) continue;
+      if (node.name !== 'slot-face' && node.name !== 'slot') continue;
+      if (!node.getChildByName('Face')) continue;
+      this._open.push(node);
+    }
+    return this._open;
+  }
+
+  private _seatFor(slot: Node): Seat | null {
+    for (let i = 0; i < this._seats.length; i++) {
+      if (this._seats[i].slot === slot) return this._seats[i];
+    }
+    return null;
+  }
+
+  private _nextKind(kind: Kind): Kind | null {
+    const next = nextTurret(kind);
+    return next ? asKind(next) : null;
+  }
+
+  private _upgradeSeat(seat: Seat): void {
+    const kind = this._nextKind(seat.kind);
+    if (!kind) {
+      setOrderHint('这座已经满级，点另一座');
+      return;
+    }
+    const pack = this._packs.get(kind) ?? null;
+    const gun = this._gun;
+    const scene = this.node.scene;
+    if (!pack?.template.isValid || !gun || !scene || !seat.turret.isValid) return;
+    const now = Date.now();
+    if (now - this._lastDrop < 80) return;
+    gun.retire(seat.turret);
+    const root = instantiate(pack.template);
+    root.name = kind;
+    root.active = true;
+    scene.addChild(root);
+    this._seatOnPad(root, seat.slot, seat.x, seat.z, pack.footY);
+    gun.adopt(root);
+    drawAboveBase(root);
+    const wired = this._freshGhost(pack.template);
+    if (wired) {
+      wired.node.active = true;
+      wired.node.setScale(root.scale);
+      const seated = root.worldPosition;
+      wired.node.setWorldPosition(seated.x, seated.y, seated.z);
+    }
+    this._reveal(root, wired?.node ?? null, wired?.mat ?? null);
+    const grid = this._grid;
+    const cell = Math.max(grid?.cellX ?? 0, grid?.cellZ ?? 0, 4.2);
+    spawnPlantBeam(scene, seat.x, seat.z, cell, cell);
+    seat.kind = kind;
+    seat.turret = root;
+    this._lastDrop = now;
+    this._clearOrder();
   }
 
   private _aim(x: number, y: number): void {
@@ -945,6 +1165,14 @@ function drawAboveBase(root: Node): void {
       });
     }
   }
+}
+
+function screenDist(cam: Camera, node: Node, x: number, y: number): number {
+  node.updateWorldTransform();
+  cam.worldToScreen(node.worldPosition, _screen);
+  const dx = _screen.x - x;
+  const dy = _screen.y - y;
+  return dx * dx + dy * dy;
 }
 
 function rayFace(ray: geometry.Ray, face: Node): number {

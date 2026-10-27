@@ -16,6 +16,7 @@ import {
   ParticleSystem,
   Texture2D,
   Vec3,
+  director,
   gfx,
   utils,
 } from 'cc';
@@ -182,6 +183,16 @@ class SlotHaloView extends Component {
       );
     }
     return ps;
+  }
+}
+
+/** The plant wait pauses the director, so the rings keep turning from the draw. */
+export function tickSlotHalos(dt: number): void {
+  const scene = director.getScene();
+  if (!scene) return;
+  const views = scene.getComponentsInChildren(SlotHaloView);
+  for (let i = 0; i < views.length; i++) {
+    if (views[i].enabledInHierarchy) views[i].update(dt);
   }
 }
 

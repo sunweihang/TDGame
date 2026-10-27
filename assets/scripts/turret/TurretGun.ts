@@ -23,6 +23,7 @@ import { createOrbFlash, warmupRailFlash } from '../bullet/OrbFlash.ts';
 import { orbTune, spawnPurpleOrb, warmupPurpleOrb } from '../bullet/PurpleOrb.ts';
 import { FlameJet, mountFlame } from '../effect/FlameJet.ts';
 import { MonsterUnit } from '../monster/MonsterUnit.ts';
+import { coolScale, rangeScale } from '../game/BattleMods.ts';
 import { TurretPlate } from './TurretPlate.ts';
 
 const { ccclass } = _decorator;
@@ -1275,6 +1276,19 @@ export class TurretGun extends Component {
     this._arm(root, false, index, index + 1);
   }
 
+  /** Drop a turret that is about to be replaced by the next tier. */
+  retire(root: Node): void {
+    const guns = this._guns;
+    for (let i = guns.length - 1; i >= 0; i--) {
+      if (guns[i].root !== root) continue;
+      const plate = guns[i].plate?.node ?? null;
+      guns.splice(i, 1);
+      if (plate?.isValid) plate.destroy();
+      break;
+    }
+    if (root.isValid) root.destroy();
+  }
+
   private _collect(scene: Node | null): Node[] {
     const found: Node[] = [];
     if (!scene) return found;
@@ -2006,9 +2020,9 @@ export class TurretGun extends Component {
     const origin = pivot.worldPosition;
     const flame = gun.flame?.isValid ? gun.flame : null;
     if (isRail(gun.root.name)) {
-      return { x: origin.x, z: origin.z, range: orbTune(gun.root.name).reach, flame: null };
+      return { x: origin.x, z: origin.z, range: orbTune(gun.root.name).reach * rangeScale(), flame: null };
     }
-    if (!flame) return { x: origin.x, z: origin.z, range: RANGE, flame: null };
+    if (!flame) return { x: origin.x, z: origin.z, range: RANGE * rangeScale(), flame: null };
     flame.node.updateWorldTransform();
     const mouth = flame.node.worldPosition;
     const off = Math.hypot(mouth.x - origin.x, mouth.z - origin.z);
@@ -2165,14 +2179,14 @@ export class TurretGun extends Component {
       if (gun.ice) {
         if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
         if (!this._iceBullet) continue;
-        gun.cool = iceTune(gun.root.name).gap;
+        gun.cool = iceTune(gun.root.name).gap * coolScale();
         this._throwIce(gun, monster);
         continue;
       }
       if (gun.flame?.isValid) {
         if (!breathing) continue;
         if (gun.cool > 0) continue;
-        gun.cool = SHOT_GAP;
+        gun.cool = SHOT_GAP * coolScale();
         gun.flame.scorch();
         const mouth = gun.flame.node.worldPosition;
         createMuzzleBurst(gun.head ?? gun.root, mouth, Math.max(3.4, gun.mouth * 2.6), 'fire', 0.34);
@@ -2181,11 +2195,11 @@ export class TurretGun extends Component {
       if (gun.cool > 0 || !monster || Math.abs(remain) > AIM_GATE) continue;
       if (isRail(gun.root.name)) {
         if (!this._orb) continue;
-        gun.cool = orbTune(gun.root.name).gap;
+        gun.cool = orbTune(gun.root.name).gap * coolScale();
         this._fireOrb(gun);
         continue;
       }
-      gun.cool = SHOT_GAP;
+      gun.cool = SHOT_GAP * coolScale();
       this._fire(gun);
     }
   };

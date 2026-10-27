@@ -1,5 +1,6 @@
 import { Camera, director, Label, Layers, Node, Sprite, SpriteFrame, UITransform, Vec3, Widget, resources } from 'cc';
 import { EnergyBar } from '../game/EnergyBar.ts';
+import { goldPayout } from '../game/BattleMods.ts';
 
 /**
  * A kill spills coins and energy at the body.
@@ -268,9 +269,10 @@ function release(token: Token): void {
 }
 
 function addGold(n: number): void {
-  if (n <= 0) return;
+  const gain = goldPayout(n);
+  if (gain <= 0) return;
   if (_gold < 0) _gold = readGold();
-  _gold += n;
+  _gold += gain;
   const lab = goldLabel();
   if (lab) lab.string = String(_gold);
 }

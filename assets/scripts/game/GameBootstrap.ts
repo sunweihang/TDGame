@@ -24,11 +24,13 @@ import { holdDomSplash, isSplashClicked, releaseDomSplash, signalLoadReady, spla
 import { DESIGN_H, applyDesignResolution, applyPortraitCameraRect, plateFrame } from './PortraitFit.ts';
 import { mountDmgFont, tickDmgFont } from '../effect/DmgFont.ts';
 import { mountKillLoot, tickKillLoot } from '../effect/KillLoot.ts';
+import { LubanTables } from '../config/luban/LubanTables.ts';
 import { mountAbilityPick } from './AbilityPick.ts';
 import { warmupMuzzleFlash } from '../bullet/BlueLaser.ts';
 import { warmupIceChunk } from '../bullet/IceChunk.ts';
 import { warmupFlame } from '../effect/FlameJet.ts';
 import { warmupHpBar } from '../effect/HpBar.ts';
+import { warmupPlantMarks } from './PlantMarks.ts';
 import { PlayerTank } from '../player/PlayerTank.ts';
 import { TankWalkGM } from '../player/TankWalkGM.ts';
 import { TurretGun } from '../turret/TurretGun.ts';
@@ -214,7 +216,11 @@ export class GameBootstrap extends Component {
         mountKillLoot(canvas);
         mountAbilityPick(canvas);
       }
+      LubanTables.load().catch((err) => {
+        console.error('[GameBootstrap] 三选一表加载失败', err);
+      });
       warmupHpBar();
+      warmupPlantMarks();
       warmupMuzzleFlash();
       warmupIceChunk();
       warmupFlame();

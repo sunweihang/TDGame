@@ -10,9 +10,10 @@ import {
   Node,
   Texture2D,
   Vec3,
+  director,
   utils,
 } from 'cc';
-import { addBaseAura, baseEffectsOn, effectCenter, setBaseEffectsFlag, slotPad } from './BaseAura.ts';
+import { baseEffectsOn, effectCenter, setBaseEffectsFlag, slotPad } from './BaseAura.ts';
 
 export { baseEffectsOn };
 
@@ -116,7 +117,7 @@ export function setBaseEffects(scene: Node, on: boolean): void {
     const gem = node.getChildByName('BaseGem');
     const aura = node.getChildByName('BaseAura');
     if (gem?.isValid) gem.active = on;
-    if (aura?.isValid) aura.active = on;
+    if (aura?.isValid) aura.destroy();
     if (on) addBaseGem(node);
   }
 }
@@ -132,7 +133,6 @@ export function sealBaseGem(slot: Node): void {
 /** The reference picture, standing on the stone and facing the camera. */
 export function addBaseGem(slot: Node): void {
   if (!baseEffectsOn() || !slot.isValid || _sealed.has(slot)) return;
-  addBaseAura(slot);
   if (slot.getChildByName('BaseGem')) return;
   const pad = slotPad(slot);
   const spot = effectCenter(slot);
@@ -189,5 +189,15 @@ class BaseGemView extends Component {
     this._time += dt;
     const bob = Math.sin(this._time * 1.5) * 0.16;
     this.node.setPosition(this._x, this._y + bob, this._z);
+  }
+}
+
+/** The plant wait pauses the director, so the crystal bob is stepped from the draw. */
+export function tickBaseGems(dt: number): void {
+  const scene = director.getScene();
+  if (!scene) return;
+  const views = scene.getComponentsInChildren(BaseGemView);
+  for (let i = 0; i < views.length; i++) {
+    if (views[i].enabledInHierarchy) views[i].update(dt);
   }
 }

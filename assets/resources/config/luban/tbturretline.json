@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "机枪",
+    "tiers": "10010,10011,10012",
+    "plant_weight": 100,
+    "icon": "ui/ability/icon-attack"
+  },
+  {
+    "id": 2,
+    "name": "喷火",
+    "tiers": "10005,10006,10007",
+    "plant_weight": 100,
+    "icon": "ui/ability/icon-attack"
+  },
+  {
+    "id": 3,
+    "name": "冰炮",
+    "tiers": "10008,10009,10013",
+    "plant_weight": 100,
+    "icon": "ui/ability/icon-swift"
+  },
+  {
+    "id": 4,
+    "name": "电磁",
+    "tiers": "10014,10015,10016",
+    "plant_weight": 100,
+    "icon": "ui/ability/icon-swift"
+  },
+  {
+    "id": 5,
+    "name": "激光",
+    "tiers": "10000",
+    "plant_weight": 40,
+    "icon": "ui/ability/icon-attack"
+  },
+  {
+    "id": 6,
+    "name": "旧式机枪",
+    "tiers": "10001",
+    "plant_weight": 15,
+    "icon": "ui/ability/icon-attack"
+  },
+  {
+    "id": 7,
+    "name": "双管",
+    "tiers": "10002",
+    "plant_weight": 25,
+    "icon": "ui/ability/icon-attack"
+  },
+  {
+    "id": 8,
+    "name": "九管",
+    "tiers": "10004",
+    "plant_weight": 25,
+    "icon": "ui/ability/icon-attack"
+  }
+]

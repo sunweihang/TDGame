@@ -1,4 +1,5 @@
 import { Camera, Color, Node, Sprite, SpriteFrame, Texture2D, UITransform, Vec3 } from 'cc';
+import { gateTaken } from '../game/BattleMods.ts';
 import { GateHp } from './GateHp.ts';
 
 /** Gate stones start this far down the sprite. Crystals above that are not the face. */
@@ -25,6 +26,7 @@ const HOLE_RIGHT = 38;
 const HOLE_H = 115;
 /** A full light monster (1400) takes a twentieth of the gate. Heavies bring whatever they have left. */
 const GATE_MAX = 28000;
+let _bonus = 0;
 /** Screen edges and the fill go red under this fraction. */
 const LOW = 1 / 3;
 /** Soft wash texture. Bigger than the fade so the edge stays smooth when stretched. */
@@ -57,9 +59,22 @@ export function touchWall(): void {
   _left = FLASH;
 }
 
-/** A monster that reaches the door spends its remaining life on the gate. */
+/** Unmodified gate maximum, before 城门加固 cards. */
+export function gateBaseMax(): number {
+  return GATE_MAX;
+}
+
+/** Add life to the gate and raise the maximum by the same amount. */
+export function grantGateHp(amount: number): void {
+  const add = Math.max(0, Math.round(amount));
+  if (add <= 0) return;
+  _bonus += add;
+  _hp += add;
+}
+
+/** A monster that reaches the door spends its remaining life on the gate. Defense cards shrink that. */
 export function hurtGate(amount: number): void {
-  const dealt = Math.max(0, amount);
+  const dealt = Math.max(0, gateTaken(amount));
   if (dealt > 0 && _hp > 0) _hp = Math.max(0, _hp - dealt);
   touchWall();
 }
@@ -105,7 +120,7 @@ function syncGateBar(scene: Node | null, dt: number): void {
   if (root.getSiblingIndex() !== above) root.setSiblingIndex(above);
   const bar = root.getComponent(GateHp);
   if (!bar) return;
-  bar.setRatio(_hp / GATE_MAX);
+  bar.setRatio(_hp / (GATE_MAX + _bonus));
   bar.tick(dt);
 }
 

@@ -25,15 +25,24 @@ const _point = new Vec3();
 
 let _live: TankStick | null = null;
 let _mounts = 0;
+/** Plant and upgrade taps must reach the battlefield. The plate covers the whole screen. */
+let _suppressed = false;
+/** The plate swallows the touch, so the placer never sees it. This runs the tap instead. */
+let _armedTap: ((x: number, y: number) => void) | null = null;
+
+/** While a base tap is expected, the plate does not drive the tank. */
+export function setStickSuppressed(on: boolean): void {
+  _suppressed = on;
+  _live?.applySuppress();
+}
+
+export function setArmedTap(fn: ((x: number, y: number) => void) | null): void {
+  _armedTap = fn;
+}
 
 /** True while a finger or mouse button is down on the stick, including the frame it lifts. */
 export function stickHeld(): boolean {
   return _live?._held ?? false;
-}
-
-/** True when this gesture slid the knob. Stays set through the lift frame. */
-export function stickSlid(): boolean {
-  return _live?._slid ?? false;
 }
 
 export function stickTouch(id: number): boolean {
@@ -108,6 +117,7 @@ export class TankStick extends Component {
   _axisY = 0;
   private _originX = 0;
   private _originY = 0;
+  private _passId = -1;
   private _stick: Node | null = null;
   private _knob: Node | null = null;
   private _arrow: Node | null = null;
@@ -124,6 +134,22 @@ export class TankStick extends Component {
     this.node.on(Node.EventType.TOUCH_MOVE, this._move, this);
     this.node.on(Node.EventType.TOUCH_END, this._end, this);
     this.node.on(Node.EventType.TOUCH_CANCEL, this._end, this);
+    this.applySuppress();
+  }
+
+  /** Hide the plate. The finger still lands here, and a lift is forwarded as a base tap. */
+  applySuppress(): void {
+    if (!this.node.isValid) return;
+    this.node.resumeSystemEvents(true);
+    if (!_suppressed) return;
+    this._held = false;
+    this._slid = false;
+    this._release = false;
+    this._id = -1;
+    this._passId = -1;
+    this._axisX = 0;
+    this._axisY = 0;
+    if (this._stick?.isValid) this._stick.active = false;
   }
 
   onDestroy(): void {
@@ -143,6 +169,10 @@ export class TankStick extends Component {
   }
 
   private _begin = (event: EventTouch): void => {
+    if (_suppressed) {
+      this._passId = event.touch ? event.touch.getID() : -1;
+      return;
+    }
     if (loginPointerBlocked()) return;
     const touch = event.touch;
     if (!touch || (this._held && !this._release)) return;
@@ -167,6 +197,7 @@ export class TankStick extends Component {
   };
 
   private _move = (event: EventTouch): void => {
+    if (_suppressed) return;
     const touch = event.touch;
     if (!touch || touch.getID() !== this._id) return;
     const rootUi = this.node.getComponent(UITransform);
@@ -177,6 +208,15 @@ export class TankStick extends Component {
   };
 
   private _end = (event: EventTouch): void => {
+    if (_suppressed) {
+      const touch = event.touch;
+      if (touch && this._passId !== -1 && touch.getID() !== this._passId) return;
+      this._passId = -1;
+      if (event.type !== Node.EventType.TOUCH_END) return;
+      const p = event.getLocation();
+      _armedTap?.(p.x, p.y);
+      return;
+    }
     const touch = event.touch;
     if (touch && touch.getID() !== this._id) return;
     this._axisX = 0;

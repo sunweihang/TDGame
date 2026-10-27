@@ -11,6 +11,7 @@ import {
   Node,
   Prefab,
   Vec3,
+  director,
   utils,
 } from 'cc';
 
@@ -178,6 +179,16 @@ class BaseAuraView extends Component {
   update(dt: number): void {
     this._time += dt;
     this.node.setRotationFromEuler(0, this._time * 120, 0);
+  }
+}
+
+/** The plant wait pauses the director, so the column keeps spinning from the draw. */
+export function tickBaseAuras(dt: number): void {
+  const scene = director.getScene();
+  if (!scene) return;
+  const views = scene.getComponentsInChildren(BaseAuraView);
+  for (let i = 0; i < views.length; i++) {
+    if (views[i].enabledInHierarchy) views[i].update(dt);
   }
 }
 

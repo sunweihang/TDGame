@@ -13,9 +13,19 @@ import {
   resources,
 } from 'cc';
 import { goldCount, onEnergyFull, spendGold, writeEnergy } from '../effect/KillLoot.ts';
+import { gateBaseMax, grantGateHp } from '../effect/WallFlash.ts';
+import { LubanTables } from '../config/luban/LubanTables.ts';
+import { applyStat, STAT_HP } from './BattleMods.ts';
+import { KIND_PLANT, KIND_UPGRADE, noteTaken, rollOffers, type Offer } from './PickRoll.ts';
+import { setPicking } from './PlaceHint.ts';
+import { holdPlantBattle } from './PlantMarks.ts';
+import { livePlacer } from '../turret/TurretPlacer.ts';
 
 /**
  * Three-offer popup. Opens when the energy vial reaches 100.
+ * Cards are rolled from the Luban pick tables.
+ * A plant card arms one turret. An upgrade card waits for a tap on a turret.
+ * Stat cards apply as soon as they are bought.
  * The plate is the shared HUD glass (the progress-bar card).
  * Card faces, icons, coins, the recommend ribbon, and the three buttons are drawn skins.
  * Measured from the 684×1024 reference, then scaled onto the 1080-wide frame.
@@ -56,11 +66,6 @@ const ICON_BACK = [
 ];
 const ICON_BACK_SIZE = 214;
 const ICON_SIZE = 172;
-const ICON_ART = [
-  'ui/ability/icon-attack/spriteFrame',
-  'ui/ability/icon-swift/spriteFrame',
-  'ui/ability/icon-gold/spriteFrame',
-];
 const COIN_ART = 'ui/ability/coin-gold/spriteFrame';
 const BTN_ART = [
   'ui/ability/btn-free/spriteFrame',
@@ -98,32 +103,23 @@ const TONES: Tone[] = [
   },
 ];
 
-const RARITY_RANK: Record<string, number> = { 普通: 0, 稀有: 1, 史诗: 2 };
+const RARITY_NAME = ['普通', '稀有', '史诗'];
+const _descInk = new Color(120, 78, 48, 255);
 
-const OFFERS = [
-  { rarity: '普通', name: '攻击强化', cost: '50', tone: 0 },
-  { rarity: '稀有', name: '迅捷之力', cost: '500', tone: 1 },
-  { rarity: '史诗', name: '金币加成', cost: '500', tone: 2 },
-];
-
-/** The ribbon is its own piece. It sits on whichever offers share the highest rank. */
-function topRibbon(offers: typeof OFFERS): boolean[] {
+/** The ribbon sits on whichever offers share the highest rank, once the ranks differ. */
+function topRibbon(offers: Offer[]): boolean[] {
   let best = 0;
   let least = 99;
   for (let i = 0; i < offers.length; i++) {
-    const rank = RARITY_RANK[offers[i].rarity] ?? 0;
+    const rank = offers[i].rarity;
     if (rank > best) best = rank;
     if (rank < least) least = rank;
   }
-  const varied = best > least;
+  const varied = offers.length > 1 && best > least;
   const marks: boolean[] = [];
-  for (let i = 0; i < offers.length; i++) {
-    marks.push(varied && (RARITY_RANK[offers[i].rarity] ?? 0) === best);
-  }
+  for (let i = 0; i < offers.length; i++) marks.push(varied && offers[i].rarity === best);
   return marks;
 }
-
-const _ribbon = topRibbon(OFFERS);
 
 const _ink = new Color(92, 58, 32, 255);
 const _white = new Color(255, 255, 255, 255);
@@ -134,11 +130,31 @@ const _grayInk = new Color(140, 140, 140, 255);
 type PriceFace = {
   sprite: Sprite;
   label: Label;
+  row: Node;
+  coin: Node;
+};
+
+type CardView = {
+  root: Node;
+  rarity: Label;
+  name: Label;
+  desc: Label;
+  face: Sprite;
+  iconBack: Sprite;
+  icon: Sprite;
+  ribbon: Node;
 };
 
 const _faces: PriceFace[] = [];
+const _cards: CardView[] = [];
+const _offers: Offer[] = [];
+const _frames = new Map<string, SpriteFrame>();
 let _freeBtn: Node | null = null;
+let _rollBlue: Node | null = null;
+let _rollOrange: Node | null = null;
 let _pick = 0;
+let _freeLeft = 0;
+let _loading = false;
 
 let _root: Node | null = null;
 let _shade: Node | null = null;
@@ -202,12 +218,10 @@ export function mountAbilityPick(canvas: Node): void {
   title.outlineColor = _titleEdge;
   title.outlineWidth = 3;
 
-  for (let i = 0; i < OFFERS.length; i++) {
-    buildCard(panel, layer, i);
-  }
+  for (let i = 0; i < 3; i++) buildCard(panel, layer, i);
   buildFree(panel, layer);
-  buildRoll(panel, layer, 0, BTN_ART[1], new Color(32, 132, 220, 255), new Color(16, 78, 160, 255));
-  buildRoll(panel, layer, 1, BTN_ART[2], new Color(242, 138, 36, 255), new Color(176, 78, 12, 255));
+  _rollBlue = buildRoll(panel, layer, 0, BTN_ART[1], new Color(32, 132, 220, 255), new Color(16, 78, 160, 255), () => rollPaid());
+  _rollOrange = buildRoll(panel, layer, 1, BTN_ART[2], new Color(242, 138, 36, 255), new Color(176, 78, 12, 255), () => rollFreeAd());
   onEnergyFull(() => {
     _preview = false;
     open();
@@ -223,10 +237,36 @@ export function showAbilityPick(): void {
 
 function open(): void {
   const root = _root;
-  if (_open || !root?.isValid) return;
+  if (_open || !root?.isValid || _loading) return;
+  if (!LubanTables.isLoaded) {
+    _loading = true;
+    LubanTables.load().then(
+      () => {
+        _loading = false;
+        open();
+      },
+      (err) => {
+        _loading = false;
+        console.error('[AbilityPick] 三选一表加载失败', err);
+        if (!_preview) writeEnergy(99);
+        _preview = false;
+      },
+    );
+    return;
+  }
+  const rolled = rollOffers(fieldSnapshot());
+  if (!rolled.length) {
+    console.warn('[AbilityPick] 没有可抽的卡');
+    if (!_preview) writeEnergy(99);
+    _preview = false;
+    return;
+  }
+  _offers.length = 0;
+  for (let i = 0; i < rolled.length; i++) _offers.push(rolled[i]);
+  _freeLeft = LubanTables.tables.TbPickRule.get(1)?.freeReroll ?? 0;
   _open = true;
-  _pick = recommendedIndex();
-  paintAfford();
+  setPicking(true);
+  paintOffers();
   root.active = true;
   root.setSiblingIndex((root.parent?.children.length ?? 1) - 1);
   fitShade();
@@ -236,67 +276,150 @@ function open(): void {
   }
 }
 
+function fieldSnapshot() {
+  const placer = livePlacer();
+  return {
+    emptySlot: placer?.emptySlot() ?? false,
+    upgradeable: placer?.canUpgrade() ?? false,
+    turretReady: (id: number) => placer?.turretReady(id) ?? false,
+  };
+}
+
 function recommendedIndex(): number {
-  for (let i = 0; i < _ribbon.length; i++) {
-    if (_ribbon[i]) return i;
-  }
+  const marks = topRibbon(_offers);
+  for (let i = 0; i < marks.length; i++) if (marks[i]) return i;
   return 0;
 }
 
 function offerCost(index: number): number {
-  const n = Number(OFFERS[index].cost);
-  return Number.isFinite(n) ? n : 0;
+  const offer = _offers[index];
+  return offer ? offer.cost : 0;
 }
 
 function canAfford(index: number): boolean {
   return goldCount() >= offerCost(index);
 }
 
+function rollGold(): number {
+  if (!LubanTables.isLoaded) return 0;
+  return LubanTables.tables.TbPickRule.get(1)?.rerollGold ?? 0;
+}
+
 /** Gray every price the wallet cannot cover. The free button follows the current option only. */
 function paintAfford(): void {
   for (let i = 0; i < _faces.length; i++) {
     const face = _faces[i];
-    const ok = canAfford(i);
-    face.sprite.grayscale = !ok;
-    face.sprite.color = ok ? _white : _grayInk;
-    face.label.color = ok ? _ink : _grayInk;
+    const shown = _cards[i]?.root.active ?? false;
+    const ok = shown && canAfford(i);
+    face.sprite.grayscale = shown && !ok;
+    face.sprite.color = ok || !shown ? _white : _grayInk;
+    face.label.color = ok || !shown ? _ink : _grayInk;
   }
-  if (_freeBtn?.isValid) _freeBtn.active = !canAfford(_pick);
+  if (_freeBtn?.isValid) _freeBtn.active = !!_offers[_pick] && !canAfford(_pick);
+  grayNode(_rollBlue, goldCount() < rollGold());
+  grayNode(_rollOrange, _freeLeft <= 0);
+}
+
+function grayNode(node: Node | null, gray: boolean): void {
+  if (!node?.isValid) return;
+  const sprites = node.getComponentsInChildren(Sprite);
+  for (let i = 0; i < sprites.length; i++) sprites[i].grayscale = gray;
 }
 
 function buy(index: number): void {
   if (!_open) return;
+  const offer = _offers[index];
+  if (!offer) return;
   _pick = index;
   if (!canAfford(index)) {
     paintAfford();
     return;
   }
-  if (!spendGold(offerCost(index))) {
+  if (!commitOffer(offer)) {
+    console.warn('[AbilityPick] 这张卡现在用不了', offer.title);
+    return;
+  }
+  if (!spendGold(offer.cost)) {
     paintAfford();
     return;
   }
-  choose(index);
+  noteTaken(offer.cardId);
+  finish(index);
 }
 
 function takeFree(): void {
   if (!_open || canAfford(_pick)) return;
-  choose(_pick);
+  const offer = _offers[_pick];
+  if (!offer || !commitOffer(offer)) return;
+  noteTaken(offer.cardId);
+  finish(_pick);
 }
 
-function choose(index: number): void {
+function rollPaid(): void {
+  if (!_open) return;
+  const cost = rollGold();
+  if (!spendGold(cost)) {
+    paintAfford();
+    return;
+  }
+  reroll();
+}
+
+function rollFreeAd(): void {
+  if (!_open || _freeLeft <= 0) return;
+  _freeLeft -= 1;
+  reroll();
+}
+
+function reroll(): void {
+  const rolled = rollOffers(fieldSnapshot());
+  if (!rolled.length) {
+    paintAfford();
+    return;
+  }
+  _offers.length = 0;
+  for (let i = 0; i < rolled.length; i++) _offers.push(rolled[i]);
+  paintOffers();
+}
+
+function commitOffer(offer: Offer): boolean {
+  if (offer.kind !== KIND_PLANT) livePlacer()?.cancelPlantAim();
+  if (offer.kind === KIND_PLANT) {
+    return livePlacer()?.armPlant(offer.turretId, offer.turretName) ?? false;
+  }
+  if (offer.kind === KIND_UPGRADE) {
+    return livePlacer()?.armUpgrade() ?? false;
+  }
+  if (offer.stat === STAT_HP) {
+    const gain = offer.percent ? Math.round(gateBaseMax() * offer.value / 100) : offer.value;
+    grantGateHp(gain);
+    return true;
+  }
+  applyStat(offer.stat, offer.value, offer.percent);
+  return true;
+}
+
+function finish(index: number): void {
   if (!_open) return;
   _choice = index;
   _preview = false;
   _open = false;
+  setPicking(false);
   if (_root?.isValid) _root.active = false;
   writeEnergy(0);
-  resume();
+  if (_offers[index]?.kind === KIND_PLANT) {
+    holdPlantBattle();
+    _held = false;
+  } else {
+    resume();
+  }
 }
 
 function closePreview(): void {
   if (!_open || !_preview) return;
   _preview = false;
   _open = false;
+  setPicking(false);
   if (_root?.isValid) _root.active = false;
   resume();
 }
@@ -342,69 +465,145 @@ function loadGlass(): void {
   });
 }
 
+function paintOffers(): void {
+  const marks = topRibbon(_offers);
+  for (let i = 0; i < _cards.length; i++) {
+    const card = _cards[i];
+    const offer = _offers[i];
+    card.root.active = !!offer;
+    if (!offer) continue;
+    const tone = Math.max(0, Math.min(TONES.length - 1, offer.rarity));
+    card.rarity.string = RARITY_NAME[tone] ?? RARITY_NAME[0];
+    card.name.string = offer.title;
+    card.desc.string = offer.desc;
+    card.ribbon.active = !!marks[i];
+    paintFrame(card.face, CARD_ART[tone], CARD_W, CARD_H, card.root.getChildByName('plate'));
+    paintFrame(card.iconBack, ICON_BACK[tone], ICON_BACK_SIZE, ICON_BACK_SIZE, null);
+    paintFrame(card.icon, offer.icon, ICON_SIZE, ICON_SIZE, null);
+    layoutPrice(_faces[i], String(offer.cost));
+  }
+  _pick = recommendedIndex();
+  paintAfford();
+}
+
+function layoutPrice(face: PriceFace | undefined, cost: string): void {
+  if (!face) return;
+  face.label.string = cost;
+  const priceW = Math.max(36, cost.length * 22 + 16);
+  const coinW = 36;
+  const gap = 8;
+  const row = coinW + gap + priceW;
+  const rowLeft = -row / 2;
+  face.row.getComponent(UITransform)?.setContentSize(row, 44);
+  face.coin.setPosition(rowLeft + coinW / 2, 0, 0);
+  face.label.node.getComponent(UITransform)?.setContentSize(priceW, 44);
+  face.label.node.setPosition(rowLeft + coinW + gap + priceW / 2, 0, 0);
+}
+
+function framePath(path: string): string {
+  if (!path) return '';
+  return path.endsWith('/spriteFrame') ? path : `${path}/spriteFrame`;
+}
+
+function paintFrame(sprite: Sprite, path: string, w: number, h: number, hide: Node | null): void {
+  const key = framePath(path);
+  if (!key || !sprite.isValid) return;
+  const apply = (frame: SpriteFrame) => {
+    if (!sprite.isValid) return;
+    sprite.spriteFrame = frame;
+    sprite.type = Sprite.Type.SIMPLE;
+    sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+    sprite.node.getComponent(UITransform)?.setContentSize(w, h);
+    if (hide?.isValid) hide.active = false;
+  };
+  const cached = _frames.get(key);
+  if (cached) {
+    apply(cached);
+    return;
+  }
+  resources.load(key, SpriteFrame, (err, frame) => {
+    if (err || !frame) {
+      console.error('[AbilityPick] 贴图加载失败', key, err);
+      return;
+    }
+    _frames.set(key, frame);
+    apply(frame);
+  });
+}
+
 function buildCard(panel: Node, layer: number, index: number): void {
-  const offer = OFFERS[index];
-  const tone = TONES[offer.tone];
+  const tone = TONES[index] ?? TONES[0];
   const node = new Node(`card-${index}`);
   node.layer = layer;
   panel.addChild(node);
   node.addComponent(UITransform).setContentSize(CARD_W, CARD_H);
   node.setPosition(CARD_X[index], CARD_Y, 0);
-  const plate = paintPlate(node, CARD_W, CARD_H, 28, tone.fill, tone.edge);
-  skinNode(node, layer, 'skin', CARD_ART[index], CARD_W, CARD_H, 0, 0, plate);
-  const rarity = text(node, layer, 'rarity', offer.rarity, 120, 34, 22, 28);
-  rarity.node.setPosition(0, 236, 0);
+  paintPlate(node, CARD_W, CARD_H, 28, tone.fill, tone.edge);
+  const face = frameSprite(node, layer, 'skin', CARD_W, CARD_H, 0, 0);
+  const rarity = text(node, layer, 'rarity', '', 160, 34, 22, 28);
+  rarity.node.setPosition(0, 228, 0);
   rarity.color = _white;
   rarity.enableOutline = true;
   rarity.outlineColor = _titleEdge;
   rarity.outlineWidth = 2;
-  if (_ribbon[index]) {
-    const banner = skinNode(node, layer, 'recommend', RIBBON_ART, 250, 68, 0, RIBBON_Y, null);
-    const mark = text(banner, layer, 'txt', '推荐', 120, 36, 26, 30);
-    mark.node.setPosition(0, 10, 0);
-    mark.color = _white;
-    mark.enableOutline = true;
-    mark.outlineColor = new Color(160, 80, 10, 255);
-    mark.outlineWidth = 3;
-  }
-  skinNode(node, layer, 'icon-back', ICON_BACK[index], ICON_BACK_SIZE, ICON_BACK_SIZE, 0, ICON_Y, null);
-  skinNode(node, layer, 'icon-slot', ICON_ART[index], ICON_SIZE, ICON_SIZE, 0, ICON_Y, null);
+  const banner = skinNode(node, layer, 'recommend', RIBBON_ART, 250, 68, 0, RIBBON_Y, null);
+  banner.active = false;
+  const mark = text(banner, layer, 'txt', '推荐', 120, 36, 26, 30);
+  mark.node.setPosition(0, 10, 0);
+  mark.color = _white;
+  mark.enableOutline = true;
+  mark.outlineColor = new Color(160, 80, 10, 255);
+  mark.outlineWidth = 3;
+  const iconBack = frameSprite(node, layer, 'icon-back', ICON_BACK_SIZE, ICON_BACK_SIZE, 0, ICON_Y);
+  const icon = frameSprite(node, layer, 'icon-slot', ICON_SIZE, ICON_SIZE, 0, ICON_Y);
 
-  const name = text(node, layer, 'name', offer.name, CARD_W - 24, 44, 30, 36);
-  name.node.setPosition(0, -128, 0);
+  const name = text(node, layer, 'name', '', CARD_W - 24, 44, 28, 34);
+  name.node.setPosition(0, -112, 0);
   name.color = _ink;
   name.enableOutline = false;
+  name.overflow = Label.Overflow.SHRINK;
 
-  const priceW = offer.cost.length * 22 + 16;
+  const desc = text(node, layer, 'desc', '', CARD_W - 28, 56, 20, 26);
+  desc.node.setPosition(0, -162, 0);
+  desc.color = _descInk;
+  desc.enableOutline = false;
+  desc.overflow = Label.Overflow.SHRINK;
+
   const coinW = 36;
-  const gap = 8;
-  const row = coinW + gap + priceW;
-  const rowLeft = -row / 2;
   const cost = new Node('cost');
   cost.layer = layer;
   node.addChild(cost);
-  cost.addComponent(UITransform).setContentSize(row, 44);
-  cost.setPosition(0, -206, 0);
+  cost.addComponent(UITransform).setContentSize(120, 44);
+  cost.setPosition(0, -214, 0);
   const coin = new Node('coin');
   coin.layer = layer;
   cost.addChild(coin);
   coin.addComponent(UITransform).setContentSize(coinW, coinW);
-  coin.setPosition(rowLeft + coinW / 2, 0, 0);
   const skin = skinNode(coin, layer, 'skin', COIN_ART, coinW, coinW, 0, 0, null);
-  const price = text(cost, layer, 'num', offer.cost, priceW, 44, 30, 36);
-  price.node.setPosition(rowLeft + coinW + gap + priceW / 2, 0, 0);
+  const price = text(cost, layer, 'num', '', 72, 44, 30, 36);
   price.color = _ink;
   price.enableOutline = false;
   const sprite = skin.getComponent(Sprite);
-  if (sprite) {
-    _faces[index] = { sprite, label: price };
-  }
+  if (sprite) _faces[index] = { sprite, label: price, row: cost, coin };
 
   const button = node.addComponent(Button);
   button.transition = Button.Transition.SCALE;
   button.zoomScale = 0.97;
   button.duration = 0.12;
   node.on(Button.EventType.CLICK, () => buy(index), node);
+  _cards[index] = { root: node, rarity, name, desc, face, iconBack, icon, ribbon: banner };
+}
+
+function frameSprite(parent: Node, layer: number, name: string, w: number, h: number, x: number, y: number): Sprite {
+  const node = new Node(name);
+  node.layer = layer;
+  parent.addChild(node);
+  node.addComponent(UITransform).setContentSize(w, h);
+  node.setPosition(x, y, 0);
+  const sprite = node.addComponent(Sprite);
+  sprite.sizeMode = Sprite.SizeMode.CUSTOM;
+  sprite.type = Sprite.Type.SIMPLE;
+  return sprite;
 }
 
 function buildFree(panel: Node, layer: number): void {
@@ -428,8 +627,16 @@ function buildFree(panel: Node, layer: number): void {
   _freeBtn = node;
 }
 
-function buildRoll(panel: Node, layer: number, index: number, art: string, fill: Color, edge: Color): void {
-  pressButton(
+function buildRoll(
+  panel: Node,
+  layer: number,
+  index: number,
+  art: string,
+  fill: Color,
+  edge: Color,
+  onTap: () => void,
+): Node {
+  return pressButton(
     panel,
     layer,
     `roll-${index}`,
@@ -442,7 +649,7 @@ function buildRoll(panel: Node, layer: number, index: number, art: string, fill:
     art,
     fill,
     edge,
-    () => {},
+    onTap,
     index === 1,
   );
 }

@@ -44,106 +44,20 @@ const INNER_W = PANEL_W - PAD_X * 2;
 const HEADER_H = 96;
 const ROW_H = 84;
 const ROW_GAP = 12;
-const AFTER_ROWS = 18;
-const SECTION_H = 40;
-const AFTER_SECTION = 8;
-const GROUP_TITLE_H = 32;
-const GROUP_GAP = 16;
-const PLANT_H = 82;
-const CHIP_GAP_X = 10;
-const CHIP_GAP_Y = 10;
-const CHIP_TITLE_GAP = 6;
 const CLOSE_GAP = 20;
 const CLOSE_H = 72;
 const TEXT_INSET = 22;
 const PILL_INSET = 16;
 const ROW_PILL_W = 100;
 const ROW_PILL_H = 40;
-const CHIP_PILL_W = 60;
-const CHIP_PILL_H = 32;
 const ROW_RADIUS = 18;
-const CHIP_RADIUS = 14;
-
-type PlantKind =
-  | '10000'
-  | '10001'
-  | '10002'
-  | '10004'
-  | '10005'
-  | '10006'
-  | '10007'
-  | '10008'
-  | '10009'
-  | '10010'
-  | '10011'
-  | '10012'
-  | '10013'
-  | '10014'
-  | '10015'
-  | '10016';
-
-type PlantSpec = { id: PlantKind; name: string; tag: string };
-
-/** Empty-pad roll order. Groups only change how the panel is drawn. */
-const PLANT_GROUPS: { title: string; cols: number; items: PlantSpec[] }[] = [
-  {
-    title: '机枪',
-    cols: 3,
-    items: [
-      { id: '10010', name: '枪1', tag: '10010' },
-      { id: '10011', name: '枪2', tag: '10011' },
-      { id: '10012', name: '枪3', tag: '10012' },
-    ],
-  },
-  {
-    title: '火焰',
-    cols: 3,
-    items: [
-      { id: '10005', name: '火1', tag: '10005' },
-      { id: '10006', name: '火2', tag: '10006' },
-      { id: '10007', name: '火3', tag: '10007' },
-    ],
-  },
-  {
-    title: '冰炮',
-    cols: 3,
-    items: [
-      { id: '10008', name: '冰1', tag: '10008' },
-      { id: '10009', name: '冰2', tag: '10009' },
-      { id: '10013', name: '冰3', tag: '10013' },
-    ],
-  },
-  {
-    title: '电磁',
-    cols: 3,
-    items: [
-      { id: '10014', name: '电1', tag: '10014' },
-      { id: '10015', name: '电2', tag: '10015' },
-      { id: '10016', name: '电3', tag: '10016' },
-    ],
-  },
-  {
-    title: '其他',
-    cols: 2,
-    items: [
-      { id: '10000', name: '激光', tag: '10000' },
-      { id: '10001', name: '旧枪', tag: '10001' },
-      { id: '10002', name: '双管', tag: '10002' },
-      { id: '10004', name: '九管', tag: '10004' },
-    ],
-  },
-];
-
-const _plantOn = new Set<PlantKind>(['10012', '10005', '10006', '10007', '10008', '10009', '10013', '10014', '10015', '10016']);
 
 const _ink = new Color(48, 230, 96, 130);
 const _edge = new Color(0, 0, 0, 220);
 const _shadeInk = new Color(0, 0, 0, 188);
 const _gold = new Color(236, 204, 122, 255);
-const _goldText = new Color(226, 196, 128, 255);
 const _goldDim = new Color(212, 176, 96, 130);
 const _labelInk = new Color(236, 240, 230, 255);
-const _mutedInk = new Color(154, 170, 156, 230);
 const _cardInk = new Color(8, 16, 14, 248);
 const _cardEdge = new Color(214, 178, 98, 235);
 const _cardInner = new Color(232, 210, 160, 42);
@@ -177,22 +91,9 @@ export function walkGmHeld(): boolean {
   return _finger || _linger || _open;
 }
 
-/** Checked turret ids, in list order. An empty pad rolls one of these once it has loaded. */
-export function gmPlantPool(): PlantKind[] {
-  const pool: PlantKind[] = [];
-  for (let g = 0; g < PLANT_GROUPS.length; g++) {
-    const items = PLANT_GROUPS[g].items;
-    for (let i = 0; i < items.length; i++) {
-      const id = items[i].id;
-      if (_plantOn.has(id)) pool.push(id);
-    }
-  }
-  return pool;
-}
-
 /**
  * G opens and closes the panel directly.
- * 走区, 开始刷怪, 显示基座特效, and 种塔 switch inside. 3选1 opens the ability popup.
+ * 走区, 开始刷怪, and 显示基座特效 switch inside. 3选1 opens the ability popup.
  * Spawning and the empty-pad effects stay off until those two switches are on.
  * The carpet moves when the hull turns, because the camera frame and the base
  * pads are tested with the hull rectangle.
@@ -219,8 +120,6 @@ export class TankWalkGM extends Component {
   private _spawnPill: Node | null = null;
   private _basePill: Node | null = null;
   private _pickPill: Node | null = null;
-  private readonly _plants: { id: PlantKind; lab: Label; bg: Node; pill: Node; w: number }[] = [];
-  private readonly _groups: { ids: PlantKind[]; count: Label }[] = [];
   private _shadeW = 0;
   private _shadeH = 0;
   private _wait = 0;
@@ -317,23 +216,6 @@ export class TankWalkGM extends Component {
       this._pickLab.string = '显示';
       this._pickLab.color = _pillActText;
     }
-    for (let i = 0; i < this._plants.length; i++) {
-      const row = this._plants[i];
-      const on = _plantOn.has(row.id);
-      if (row.lab) {
-        row.lab.string = on ? '开' : '关';
-        row.lab.color = on ? _pillOnText : _pillOffText;
-      }
-      paintPlate(row.bg, row.w, PLANT_H, CHIP_RADIUS, on ? _rowInkOn : _rowInk, on ? _rowEdgeOn : _rowEdge, false);
-      paintPill(row.pill, CHIP_PILL_W, CHIP_PILL_H, on ? _pillOn : _pillOff, on ? _pillRimOn : _pillRimOff);
-    }
-    for (let i = 0; i < this._groups.length; i++) {
-      const group = this._groups[i];
-      let on = 0;
-      for (let k = 0; k < group.ids.length; k++) if (_plantOn.has(group.ids[k])) on += 1;
-      group.count.string = `${on}/${group.ids.length}`;
-      group.count.color = on === group.ids.length ? _gold : _mutedInk;
-    }
   }
 
   private _paintToggle(bg: Node | null, lab: Label | null, pill: Node | null, on: boolean): void {
@@ -384,10 +266,8 @@ export class TankWalkGM extends Component {
     this._paint();
   }
 
-  /** Flow the card from the top so the close bar always sits under the last chip. */
+  /** Flow the card from the top so the close bar always sits under the last row. */
   private _buildCard(card: Node, layer: number): void {
-    const chips: { spec: PlantSpec; x: number; fromTop: number; w: number }[] = [];
-    const groups: { title: string; ids: PlantKind[]; fromTop: number }[] = [];
     let cursor = 0;
     const take = (h: number, gap: number): number => {
       cursor += gap;
@@ -401,24 +281,6 @@ export class TankWalkGM extends Component {
     const spawnFrom = take(ROW_H, ROW_GAP);
     const baseFrom = take(ROW_H, ROW_GAP);
     const pickFrom = take(ROW_H, ROW_GAP);
-    const sectionFrom = take(SECTION_H, AFTER_ROWS);
-    for (let gi = 0; gi < PLANT_GROUPS.length; gi++) {
-      const group = PLANT_GROUPS[gi];
-      const titleFrom = take(GROUP_TITLE_H, gi === 0 ? AFTER_SECTION : GROUP_GAP);
-      const ids: PlantKind[] = [];
-      for (let i = 0; i < group.items.length; i++) ids.push(group.items[i].id);
-      groups.push({ title: group.title, ids, fromTop: titleFrom });
-      const cols = group.cols;
-      const chipW = (INNER_W - CHIP_GAP_X * (cols - 1)) / cols;
-      let rowFrom = 0;
-      for (let i = 0; i < group.items.length; i++) {
-        const col = i % cols;
-        const row = (i / cols) | 0;
-        if (col === 0) rowFrom = take(PLANT_H, row === 0 ? CHIP_TITLE_GAP : CHIP_GAP_Y);
-        const x = -INNER_W * 0.5 + chipW * 0.5 + col * (chipW + CHIP_GAP_X);
-        chips.push({ spec: group.items[i], x, fromTop: rowFrom, w: chipW });
-      }
-    }
     const closeFrom = take(CLOSE_H, CLOSE_GAP);
     const panelH = PAD_TOP + cursor + PAD_BOT;
     const yOf = (fromTop: number): number => panelH * 0.5 - PAD_TOP - fromTop;
@@ -459,16 +321,6 @@ export class TankWalkGM extends Component {
     this._pickLab = pick.lab;
     this._pickBg = pick.bg;
     this._pickPill = pick.pill;
-    ruleTitle(card, layer, 'plant-title', '种塔', yOf(sectionFrom));
-    for (let i = 0; i < groups.length; i++) {
-      const group = groups[i];
-      const count = groupTitle(card, layer, `plant-group-${i}`, group.title, yOf(group.fromTop));
-      this._groups.push({ ids: group.ids, count });
-    }
-    for (let i = 0; i < chips.length; i++) {
-      const chip = chips[i];
-      this._plants.push(this._plantChip(card, layer, chip.spec, chip.x, yOf(chip.fromTop), chip.w));
-    }
     this._closeRow(card, layer, yOf(closeFrom));
   }
 
@@ -476,43 +328,6 @@ export class TankWalkGM extends Component {
     if (this._menuOpen) this._toggleMenu();
     showAbilityPick();
   };
-
-  private _togglePlant(id: PlantKind): void {
-    if (_plantOn.has(id)) _plantOn.delete(id);
-    else _plantOn.add(id);
-    this._paint();
-  }
-
-  private _plantChip(
-    card: Node,
-    layer: number,
-    spec: PlantSpec,
-    x: number,
-    y: number,
-    w: number,
-  ): { id: PlantKind; lab: Label; bg: Node; pill: Node; w: number } {
-    const node = new Node(`gm-plant-${spec.id}`);
-    node.layer = layer;
-    card.addChild(node);
-    node.addComponent(UITransform).setContentSize(w, PLANT_H);
-    node.setPosition(x, y, 0);
-    const bg = plateNode(node, layer, 'bg', w, PLANT_H, CHIP_RADIUS, _rowInk, _rowEdge, false);
-    const textW = w - TEXT_INSET - PILL_INSET - CHIP_PILL_W - 8;
-    const textX = -w * 0.5 + TEXT_INSET + textW * 0.5;
-    const tag = textNode(node, layer, 'tag', spec.tag, textW, 20, 15, 18, { bold: false });
-    tag.horizontalAlign = Label.HorizontalAlign.LEFT;
-    tag.node.setPosition(textX, 17, 0);
-    tag.color = _mutedInk;
-    const caption = textNode(node, layer, 'name', spec.name, textW, 30, 24, 28);
-    caption.horizontalAlign = Label.HorizontalAlign.LEFT;
-    caption.node.setPosition(textX, -15, 0);
-    caption.color = _labelInk;
-    const pill = makePill(node, layer, CHIP_PILL_W, CHIP_PILL_H);
-    pill.setPosition(w * 0.5 - PILL_INSET - CHIP_PILL_W * 0.5, 0, 0);
-    const lab = textNode(pill, layer, 'state', '', CHIP_PILL_W, CHIP_PILL_H, 20, 24);
-    bindTap(node, () => this._togglePlant(spec.id));
-    return { id: spec.id, lab, bg, pill, w };
-  }
 
   private _row(
     card: Node,
@@ -754,54 +569,6 @@ function ornament(parent: Node, layer: number, y: number): void {
   g.lineTo(-5, 0);
   g.close();
   g.fill();
-}
-
-function ruleTitle(parent: Node, layer: number, name: string, text: string, y: number): void {
-  const node = new Node(name);
-  node.layer = layer;
-  parent.addChild(node);
-  node.addComponent(UITransform).setContentSize(INNER_W, SECTION_H);
-  node.setPosition(0, y, 0);
-  const g = node.addComponent(Graphics);
-  g.lineWidth = 1.5;
-  g.lineCap = Graphics.LineCap.ROUND;
-  g.strokeColor = _goldDim;
-  g.moveTo(-INNER_W * 0.5, 0);
-  g.lineTo(-52, 0);
-  g.stroke();
-  g.moveTo(52, 0);
-  g.lineTo(INNER_W * 0.5, 0);
-  g.stroke();
-  const lab = textNode(node, layer, 'txt', text, 120, SECTION_H, 28, 34);
-  lab.color = _gold;
-}
-
-function groupTitle(parent: Node, layer: number, name: string, text: string, y: number): Label {
-  const node = new Node(name);
-  node.layer = layer;
-  parent.addChild(node);
-  node.addComponent(UITransform).setContentSize(INNER_W, GROUP_TITLE_H);
-  node.setPosition(0, y, 0);
-  const mark = new Node('mark');
-  mark.layer = layer;
-  node.addChild(mark);
-  mark.setPosition(-INNER_W * 0.5 + 10, 0, 0);
-  mark.addComponent(UITransform).setContentSize(4, 16);
-  const g = mark.addComponent(Graphics);
-  g.fillColor = _gold;
-  g.roundRect(-2, -8, 4, 16, 2);
-  g.fill();
-  const boxW = INNER_W - TEXT_INSET - 88;
-  const lab = textNode(node, layer, 'txt', text, boxW, GROUP_TITLE_H, 22, 28);
-  lab.horizontalAlign = Label.HorizontalAlign.LEFT;
-  lab.node.setPosition(-INNER_W * 0.5 + TEXT_INSET + boxW * 0.5, 0, 0);
-  lab.color = _goldText;
-  const countW = 72;
-  const count = textNode(node, layer, 'count', '', countW, GROUP_TITLE_H, 18, 24, { bold: false });
-  count.horizontalAlign = Label.HorizontalAlign.RIGHT;
-  count.node.setPosition(INNER_W * 0.5 - PILL_INSET - countW * 0.5, 0, 0);
-  count.color = _mutedInk;
-  return count;
 }
 
 function textNode(

@@ -6,6 +6,7 @@ import { dropKillLoot } from '../effect/KillLoot.ts';
 import { showDmgFont, type Ink } from '../effect/DmgFont.ts';
 import { HpBar, hpBarRoot, spawnHpBar, warmupHpBar, type BuffMark } from '../effect/HpBar.ts';
 import { hurtGate, pastWall } from '../effect/WallFlash.ts';
+import { critChance, scaleHit } from '../game/BattleMods.ts';
 import { easeSkirt, skirtPlan } from './MonsterSkirt.ts';
 
 const { ccclass } = _decorator;
@@ -13,8 +14,7 @@ const { ccclass } = _decorator;
 const SPEED = 3.4;
 const HIT_R = 1.86;
 const FOOT_Y = 0.02;
-/** Each hit rolls this. A crit deals twice the hit and pops the larger number. */
-const CRIT_CHANCE = 0.2;
+/** A crit deals twice the hit and pops the larger number. The chance lives on the pick cards. */
 const CRIT_MUL = 2;
 /**
  * Knife capsule is 1.12 m wide on a body seen up close.
@@ -215,8 +215,9 @@ export class MonsterUnit extends Component {
 
   damage(amount: number, rollCrit = true, ink: Ink = 'plain'): void {
     if (!this.threat) return;
-    const crit = rollCrit && Math.random() < CRIT_CHANCE;
-    const dealt = crit ? amount * CRIT_MUL : amount;
+    const scaled = scaleHit(amount);
+    const crit = rollCrit && Math.random() < critChance();
+    const dealt = crit ? scaled * CRIT_MUL : scaled;
     this.hp -= dealt;
     showDmgFont(this.node, dealt, crit ? 'crit' : 'hit', ink);
     const scene = this.node.scene;
